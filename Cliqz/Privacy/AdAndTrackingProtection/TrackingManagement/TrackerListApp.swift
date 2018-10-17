@@ -16,8 +16,7 @@ import Storage
     var tags = [Int]()
     
     func state(domain: String?) -> TrackerUIState {
-        if let domain = domain {
-            let domainObj = getOrCreateDomain(domain: domain)
+        if let domain = domain, let domainObj = DomainStore.get(domain: domain) {
             if domainObj.trustedTrackers.contains(appId) {
                 return .trusted
             }
@@ -35,7 +34,29 @@ import Storage
             }
         }
         else {
-            TrackerStateStore.createTrackerState(appId: appId, state: .empty)
+            return .empty
+        }
+    }
+    
+    func prevState(domain: String?) -> TrackerUIState {
+        if let domain = domain, let domainObj = DomainStore.get(domain: domain) {
+            if domainObj.previouslyTrustedTrackers.contains(appId) {
+                return .trusted
+            }
+            else if domainObj.previouslyRestrictedTrackers.contains(appId) {
+                return .restricted
+            }
+        }
+        
+        if let state = TrackerStateStore.getTrackerState(appId: appId) {
+            if state.prevTranslatedState == .blocked {
+                return .blocked
+            }
+            else {
+                return .empty
+            }
+        }
+        else {
             return .empty
         }
     }
@@ -69,15 +90,5 @@ import Storage
         }
 
         return output
-    }
-    
-    fileprivate func getOrCreateDomain(domain: String) -> Domain {
-        //if we have done anything with this domain before we will have something in the DB
-        //otherwise we need to create it
-        if let domainO = DomainStore.get(domain: domain) {
-            return domainO
-        } else {
-            return DomainStore.create(domain: domain)
-        }
     }
 }

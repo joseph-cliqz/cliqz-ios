@@ -10,6 +10,8 @@ import UIKit
 import SnapKit
 
 let didChangeTabNotification = Notification.Name(rawValue: "didChangeTab")
+let didShowFreshTabNotification = Notification.Name(rawValue: "didShowFreshTabNotification")
+let didLeaveOverlayNotification = Notification.Name(rawValue: "didLeaveOverlayNotification")
 
 class GhosteryButton: InsetButton {
     
@@ -18,51 +20,29 @@ class GhosteryButton: InsetButton {
     fileprivate var currentTheme: Theme = .Normal
     
     fileprivate let ghosty = UIImageView()
-    private let circle = UIView()
     private let count = UILabel()
     
-    let circleSize: CGFloat = 20
-    
-    init(frame: CGRect = CGRect.zero, dataSource: GhosteryCountDataSource) {
+    override init(frame: CGRect) {
         super.init(frame: frame)
         ghosteryCount.delegate = self
-        ghosteryCount.dataSource = dataSource
         
         setUpComponent()
-        setUpConstaints()
-        configureGhosty(currentTheme)
+        setUpConstaints(currentTheme)
     }
     
     func setUpComponent() {
         addSubview(ghosty)
-        addSubview(circle)
-        circle.addSubview(count)
-        
-        circle.layer.cornerRadius = circleSize/2
-        circle.backgroundColor = UIColor(colorString: "930194").withAlphaComponent(0.9)
+        addSubview(count)
         
         ghosty.backgroundColor = .clear
         count.backgroundColor = .clear
         
-        count.text = "0"
+        count.text = "HELLO"
         count.textColor = .white
-        count.font = UIFont.systemFont(ofSize: 13, weight: UIFontWeightMedium)
+        count.font = UIFont.systemFont(ofSize: 14)
     }
     
-    func setUpConstaints() {
-        
-        circle.snp.makeConstraints { (make) in
-            make.top.equalToSuperview().offset(1)
-            make.right.equalToSuperview().offset(-12)
-            make.size.equalTo(circleSize)
-        }
-        
-        count.snp.makeConstraints { (make) in
-            make.center.equalToSuperview()
-        }
-    }
-    
-    func configureGhosty(_ theme: Theme) {
+    func setUpConstaints(_ theme: Theme) {
         
         if theme == .Normal {
             ghosty.image = UIImage.init(named: "ghosty")
@@ -71,14 +51,27 @@ class GhosteryButton: InsetButton {
             ghosty.image = UIImage.init(named: "ghostyPrivate")
         }
         
-        let height: CGFloat = 40.0
+        let height: CGFloat = 25.0
         let width = (ghosty.image?.widthOverHeight() ?? 1.0) * height
         
+        var centerDifference: CGFloat = 0.0
+        if theme == .Private, let normalImage = UIImage.init(named: "ghosty"), let privImage = ghosty.image {
+            let ratioNormal = normalImage.widthOverHeight()
+            let ratioPrivate = privImage.widthOverHeight()
+            let widthNormal = ratioNormal * height
+            centerDifference = 1/2 * widthNormal * (ratioPrivate / ratioNormal - 1)
+        }
+        
         ghosty.snp.remakeConstraints { (make) in
-            make.centerY.equalToSuperview()
-            make.left.equalToSuperview()
+            make.top.equalToSuperview().offset(6)
+            make.centerX.equalToSuperview()
             make.height.equalTo(height)
             make.width.equalTo(width)
+        }
+        
+        count.snp.remakeConstraints { (make) in
+            make.centerX.equalToSuperview().offset(-centerDifference)
+            make.bottom.equalToSuperview().offset(-4)
         }
     }
     
@@ -87,12 +80,7 @@ class GhosteryButton: InsetButton {
     }
     
     func setCount(count: Int) {
-        
         let count_str = String(count)
-        
-        if count_str.count > 1 {
-            self.count.font = UIFont.systemFont(ofSize: 12, weight: UIFontWeightRegular)
-        }
         
         if count <= 99 {
             self.count.text = count_str
@@ -100,40 +88,54 @@ class GhosteryButton: InsetButton {
         else {
             self.count.text = "99"
         }
-        
+    }
+    
+    func lookDeactivated() {
+        self.ghosty.alpha = 0.8
+        self.count.alpha = 0.8
+    }
+    
+    func lookActivated() {
+        self.ghosty.alpha = 1.0
+        self.count.alpha = 1.0
     }
 }
 
 extension GhosteryButton: Themeable {
     func applyTheme(_ theme: Theme) {
         currentTheme = theme
-        configureGhosty(theme)
+        setUpConstaints(theme)
     }
 }
 
 extension GhosteryButton: GhosteryCountDelegate {
     func updateCount(count: Int) {
+        self.lookActivated()
         self.setCount(count: count)
+        self.accessibilityValue = "\(count)"
+    }
+    
+    func showHello() {
+        self.count.text = "HELLO"
+        self.lookDeactivated()
     }
 }
 
 protocol GhosteryCountDelegate: class {
     func updateCount(count: Int)
-}
-
-protocol GhosteryCountDataSource: class {
-    func currentUrl() -> URL?
+    func showHello()
 }
 
 class GhosteryCount {
     
     weak var delegate: GhosteryCountDelegate? = nil
-    weak var dataSource: GhosteryCountDataSource? = nil
     
     init() {
         NotificationCenter.default.addObserver(self, selector: #selector(newTrackerDetected), name: detectedTrackerNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(newTabSelected), name: didChangeTabNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(urlChanged), name: urlChangedNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(didShowFreshtab), name: didShowFreshTabNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(didLeaveOverlay), name: didLeaveOverlayNotification, object: nil)
     }
     
     deinit {
@@ -142,20 +144,32 @@ class GhosteryCount {
     
     @objc func urlChanged(notification: Notification) {
         guard let del = UIApplication.shared.delegate as? AppDelegate, let currentTab = del.tabManager.selectedTab else {return}
-        if let tab = notification.object as? Tab, tab == currentTab, let currentUrl = self.dataSource?.currentUrl(), let host = currentUrl.normalizedHost {
-            let count = TrackerList.instance.detectedTrackerCountForPage(host)
-            self.delegate?.updateCount(count: count)
+        if let tab = notification.object as? Tab, tab == currentTab {
+            update(notification)
         }
     }
     
     @objc func newTrackerDetected(notification: Notification) {
-        if let currentUrl = self.dataSource?.currentUrl(), let host = currentUrl.normalizedHost {
-            let count = TrackerList.instance.detectedTrackerCountForPage(host)
-            self.delegate?.updateCount(count: count)
+        guard let dict = notification.userInfo as? [String: Any], let pageURL = dict["url"] as? URL else { return }
+        guard let currentTab = (UIApplication.shared.delegate as? AppDelegate)?.tabManager.selectedTab else { return }
+        if currentTab.url == pageURL {
+            update(notification)
         }
     }
     
     @objc func newTabSelected(notification: Notification) {
+        update(notification)
+    }
+    
+    @objc func didShowFreshtab(_ notification: Notification) {
+        self.delegate?.showHello()
+    }
+    
+    @objc func didLeaveOverlay(_ notification: Notification) {
+        update(notification)
+    }
+    
+    private func update(_ notification: Notification) {
         var count = 0
         
         if let userInfo = notification.userInfo, let url = userInfo["url"] as? URL, let host = url.normalizedHost {

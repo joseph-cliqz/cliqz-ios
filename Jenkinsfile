@@ -6,34 +6,30 @@ node('mac-mini-ios') {
     writeFile file: 'Vagrantfile', text: '''
     Vagrant.configure("2") do |config|
         config.vm.box = "ios-xcode9.3"
-    
-        config.vm.define "priosx93" do |priosx93|
-            priosx93.vm.hostname = "priosx93"
-            
-            priosx93.vm.network "public_network", :bridge => "en0", auto_config: false
-            priosx93.vm.boot_timeout = 900
-            priosx93.vm.provider "vmware_fusion" do |v|
-                v.name = "priosx93"
+        config.vm.define "priosx93" do |prvm|
+            prvm.vm.hostname = ENV['NODE_ID']
+            prvm.vm.boot_timeout = 900
+            prvm.vm.provider "vmware_fusion" do |v|
+                v.name = ENV['NODE_ID']
                 v.whitelist_verified = true
                 v.gui = false
                 v.memory = ENV["NODE_MEMORY"]
                 v.cpus = ENV["NODE_CPU_COUNT"]
-                v.cpu_mode = "host-passthrough"
                 v.vmx["remotedisplay.vnc.enabled"] = "TRUE"
                 v.vmx["RemoteDisplay.vnc.port"] = ENV["NODE_VNC_PORT"]
                 v.vmx["ethernet0.pcislotnumber"] = "33"
             end
-            priosx93.vm.provision "shell", privileged: false, run: "always", inline: <<-SHELL#!/bin/bash -l
+            prvm.vm.provision "shell", privileged: false, run: "always", inline: <<-SHELL#!/bin/bash -l
                 set -e
                 set -x
                 rm -f agent.jar
                 curl -LO #{ENV['JENKINS_URL']}/jnlpJars/agent.jar
-                nohup java -jar agent.jar -jnlpUrl #{ENV['JENKINS_URL']}/computer/#{ENV['NODE_ID']}/slave-agent.jnlp -secret #{ENV["NODE_SECRET"]} &
+                nohup java -jar agent.jar -jnlpUrl #{ENV['JENKINS_URL']}/computer/#{ENV['NODE_ID']}/slave-agent.jnlp -secret #{ENV['NODE_SECRET']} &
             SHELL
         end
     end
     '''
-    
+
     def jobStatus = 'FAIL'
 
     vagrant.inside(
@@ -43,7 +39,7 @@ node('mac-mini-ios') {
         8000, // MEMORY
         12000, // VNC port
         false, // rebuild image
-    ) { 
+    ) {
         nodeId ->
         node(nodeId) {
             try {
@@ -72,14 +68,25 @@ node('mac-mini-ios') {
                     sh '''#!/bin/bash -l
                         set -e
                         set -x
-                        rm -rf Carthage/*
-                        rm -rf ~/Library/Caches/org.carthage.CarthageKit
-                        CARTHAGE_VERBOSE=""
-                        if [ ! -z "$XCS_BOT_ID"  ]; then
-                            CARTHAGE_VERBOSE="--verbose"
-                        fi
-                        carthage bootstrap $CARTHAGE_VERBOSE --platform ios --color auto --cache-builds
-                        npm install
+                        carthage bootstrap --verbose --platform ios --color auto --cache-builds
+                        npm cache clean --force
+                    '''
+                    try {
+                        sh '''#!/bin/bash -l
+                            set -e
+                            set -x
+                            npm install
+                        '''
+                    } catch(e) {
+                        sh '''#!/bin/bash -l
+                            set -e
+                            set -x
+                            npm install
+                        '''
+                    }
+                    sh '''#!/bin/bash -l
+                        set -e
+                        set -x
                         npm run build
                         pod install
                         npm run bundle
@@ -94,6 +101,7 @@ node('mac-mini-ios') {
                                 -scheme "Fennec" \
                                 -sdk iphonesimulator \
                                 -destination "platform=iOS Simulator,OS=11.3,id=8A112602-53F8-4996-A58A-FC65665635EB" \
+                                OTHER_SWIFT_FLAGS='$(value) -DAUTOMATION' \
                                 ONLY_ACTIVE_ARCH=NO \
                                 -derivedDataPath clean build test
                         '''
@@ -105,7 +113,10 @@ node('mac-mini-ios') {
                         'udid=8A112602-53F8-4996-A58A-FC65665635EB',
                         'deviceName=iPhone 6s',
                         'platformVersion=11.3',
-                        'bundleID=com.cliqz.ios.newCliqz'
+                        'bundleID=com.cliqz.ios.newCliqz',
+                        "MODULE=testCompleteSuite",
+                        "TEST=CompleteSuite",
+                        "TEST_TYPE=smoke"
                         ]) {
                         timeout(60) {
                             sh '''#!/bin/bash -l
@@ -133,18 +144,14 @@ node('mac-mini-ios') {
                         kill $(ps -A | grep -m1 appium | awk '{print \$1}')
                         rm -rf *.log\
                             autobots \
-                            Cartfile.resolved \
-                            Carthage \
-                            node_modules \
-                            Podfile.lock \
-                            Pods \
                             screenshots \
                             screenshots.zip \
                             test-reports
                         xcrun simctl boot 8A112602-53F8-4996-A58A-FC65665635EB || true
-                        xcrun simctl uninstall booted com.cliqz.ios.newCliqz
-                        xcrun simctl uninstall booted com.apple.test.WebDriverAgentRunner-Runner
-                        xcrun simctl uninstall booted com.apple.test.AppiumTests-Runner
+                        xcrun simctl uninstall 8A112602-53F8-4996-A58A-FC65665635EB com.cliqz.ios.newCliqz
+                        xcrun simctl uninstall 8A112602-53F8-4996-A58A-FC65665635EB com.apple.test.WebDriverAgentRunner-Runner
+                        xcrun simctl uninstall 8A112602-53F8-4996-A58A-FC65665635EB com.apple.test.AppiumTests-Runner
+                        sleep 15
                         xcrun simctl shutdown 8A112602-53F8-4996-A58A-FC65665635EB || true
                     '''
                 }

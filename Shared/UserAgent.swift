@@ -9,7 +9,11 @@ open class UserAgent {
     private static var defaults = UserDefaults(suiteName: AppInfo.sharedContainerIdentifier)!
 
     private static func clientUserAgent(prefix: String) -> String {
+        /* Cliqz: Change user agent
         return "\(prefix)/\(AppInfo.appVersion)b\(AppInfo.buildNumber) (\(DeviceInfo.deviceModel()); iPhone OS \(UIDevice.current.systemVersion)) (\(AppInfo.displayName))"
+        */
+        let firefoxAppVersion = 13
+        return "\(prefix)/\(firefoxAppVersion)b\(AppInfo.buildNumber) (\(DeviceInfo.deviceModel()); iPhone OS \(UIDevice.current.systemVersion)) (\(AppInfo.displayName))"
     }
 
     open static var syncUserAgent: String {
@@ -87,7 +91,7 @@ open class UserAgent {
             return userAgent     // Fall back to Safari's.
         }
 
-        let webKitVersion = (userAgent as NSString).substring(with: match!.rangeAt(1))
+        let webKitVersion = (userAgent as NSString).substring(with: match!.range(at: 1))
 
         // Insert "FxiOS/<version>" before the Mobile/ section.
         let mobileRange = (userAgent as NSString).range(of: "Mobile/")

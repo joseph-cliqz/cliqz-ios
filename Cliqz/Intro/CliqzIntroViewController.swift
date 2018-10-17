@@ -9,6 +9,11 @@
 import UIKit
 import Shared
 
+struct CliqzIntroUX {
+    static let imageHeight: CGFloat = 290
+    static let PagerCenterOffsetFromScrollViewBottom = UIScreen.main.bounds.width <= 320 ? 10 : 30
+}
+
 class CliqzIntroViewController: UIViewController {
     weak var delegate: IntroViewControllerDelegate?
     
@@ -16,13 +21,21 @@ class CliqzIntroViewController: UIViewController {
     var cardViews = [CliqzCardView]()
     var cards = CliqzIntroCard.defaultCards()
     
+    enum BlockOption {
+        case none
+        case all
+        case recommended
+    }
+    
+    var blockOptionSelected: BlockOption = .recommended //default
+    
     lazy fileprivate var startBrowsingButton: UIButton = {
         let button = UIButton()
-        button.backgroundColor = UIColor.cliqzBlueOneSecondary
-        button.layer.cornerRadius = 27.0
+        button.backgroundColor = UIColor.cliqzBluePrimary
+        button.layer.cornerRadius = 23.0
         button.setTitle(Strings.StartBrowsingButtonTitle, for: UIControlState())
         button.setTitleColor(.white, for: UIControlState())
-        button.addTarget(self, action: #selector(IntroViewController.startBrowsing), for: UIControlEvents.touchUpInside)
+        button.addTarget(self, action: #selector(startBrowsing), for: UIControlEvents.touchUpInside)
         button.accessibilityIdentifier = "IntroViewController.startBrowsingButton"
         button.isHidden = true
         return button
@@ -31,7 +44,7 @@ class CliqzIntroViewController: UIViewController {
     lazy var pageControl: UIPageControl = {
         let pc = UIPageControl()
         pc.pageIndicatorTintColor = UIColor.cliqzBlueOneSecondary.withAlphaComponent(0.3)
-        pc.currentPageIndicatorTintColor = UIColor.cliqzBlueOneSecondary
+        pc.currentPageIndicatorTintColor = UIColor.cliqzBluePrimary
         pc.accessibilityIdentifier = "IntroViewController.pageControl"
         pc.addTarget(self, action: #selector(IntroViewController.changePage), for: UIControlEvents.valueChanged)
         return pc
@@ -46,6 +59,7 @@ class CliqzIntroViewController: UIViewController {
         sc.isPagingEnabled = true
         sc.showsHorizontalScrollIndicator = false
         sc.accessibilityIdentifier = "IntroViewController.scrollView"
+        sc.isUserInteractionEnabled = true
         return sc
     }()
     
@@ -54,13 +68,14 @@ class CliqzIntroViewController: UIViewController {
     }
     
     var verticalPadding: CGFloat {
-        return self.view.frame.width <= 320 ? 10 : 38
+        return self.view.frame.width <= 320 ? 10 : 20
     }
     
     lazy fileprivate var imageViewContainer: UIStackView = {
         let sv = UIStackView()
         sv.axis = .horizontal
         sv.distribution = .fillEqually
+        sv.backgroundColor = .clear
         return sv
     }()
     
@@ -68,87 +83,57 @@ class CliqzIntroViewController: UIViewController {
     fileprivate var imagesBackgroundView = UIView()
     
     override func viewDidLoad() {
-        if AppConstants.MOZ_LP_INTRO {
-            syncViaLP()
-        }
-        
         assert(cards.count > 1, "Intro is empty. At least 2 cards are required")
-        view.backgroundColor = UIColor.black
-        
+        view.backgroundColor = UIColor.clear
+        imagesBackgroundView.backgroundColor = UIColor.clear
+
         // Add Views
         view.addSubview(pageControl)
         view.addSubview(scrollView)
         view.addSubview(startBrowsingButton)
         scrollView.addSubview(imagesBackgroundView)
         scrollView.addSubview(imageViewContainer)
-        
+
         // Setup constraints
         imagesBackgroundView.snp.makeConstraints { make in
             make.edges.equalTo(imageViewContainer)
         }
         imageViewContainer.snp.makeConstraints { make in
-            make.top.equalTo(self.view)
-            make.height.equalTo(self.view.snp.width)
+            let device = UIDevice.current.getDeviceAndOrientation().0
+            var topOffset: CGFloat = 0
+            if device == .iPhoneX {
+                topOffset = 40
+            }
+            make.top.equalTo(self.view).offset(topOffset)
+            var height = (290 / 375) * self.view.frame.width
+            if device == .iPad {
+                height = 290
+            }
+            make.height.equalTo(height)
         }
-        startBrowsingButton.snp.makeConstraints { make in
+        startBrowsingButton.snp.makeConstraints { [unowned self] make in
             make.centerX.equalToSuperview()
-            make.width.equalToSuperview().dividedBy(2.2)
-            make.bottom.equalTo(self.view.safeArea.bottom).offset(-2)
-            make.height.equalTo(IntroUX.StartBrowsingButtonHeight)
+            make.bottom.equalTo(self.view.safeArea.bottom).offset(-CliqzIntroUX.PagerCenterOffsetFromScrollViewBottom)
+            make.height.equalTo(45)
+            if let label = self.startBrowsingButton.titleLabel {
+                let constraint1 = make.width.equalTo(label.snp.width).offset(30)
+                let constraint2 = make.width.lessThanOrEqualToSuperview()
+                constraint1.priority(750)
+                constraint2.priority(1000)
+            }
         }
         scrollView.snp.makeConstraints { make in
             make.left.right.top.equalTo(self.view)
             make.bottom.equalTo(startBrowsingButton.snp.top)
         }
-        
+
         pageControl.snp.makeConstraints { make in
             make.centerX.equalTo(self.scrollView)
-            make.centerY.equalTo(self.startBrowsingButton.snp.top).offset(-IntroUX.PagerCenterOffsetFromScrollViewBottom)
+            make.centerY.equalTo(self.startBrowsingButton.snp.top).offset(-20)
         }
-        
+
         createSlides()
         pageControl.addTarget(self, action: #selector(changePage), for: .valueChanged)
-    }
-    
-    func syncViaLP() {
-        /* Cliqz: comment references to LeanPlumClient
-         let startTime = Date.now()
-         LeanPlumClient.shared.introScreenVars?.onValueChanged({ [weak self] in
-         guard let newIntro = LeanPlumClient.shared.introScreenVars?.object(forKey: nil) as? [[String: Any]] else {
-         return
-         }
-         let decoder = JSONDecoder()
-         let newCards = newIntro.flatMap { (obj) -> IntroCard? in
-         guard let object = try? JSONSerialization.data(withJSONObject: obj, options: []) else {
-         return nil
-         }
-         let card = try? decoder.decode(IntroCard.self, from: object)
-         // Make sure the selector actually goes somewhere. Otherwise dont show that slide
-         if let selectorString = card?.buttonSelector, let wself = self {
-         return wself.responds(to: NSSelectorFromString(selectorString)) ? card : nil
-         } else {
-         return card
-         }
-         }
-         
-         guard newCards != IntroCard.defaultCards(), newCards.count > 1 else {
-         return
-         }
-         
-         // We need to still be on the first page otherwise the content will change underneath the user's finger
-         // We also need to let LP know this happened so we can track when a A/B test was not run
-         guard self?.pageControl.currentPage == 0 else {
-         let totalTime = Date.now() - startTime
-         LeanPlumClient.shared.track(event: .onboardingTestLoadedTooSlow, withParameters: ["Total time": "\(totalTime) ms" as AnyObject])
-         return
-         }
-         
-         self?.cards = newCards
-         self?.createSlides()
-         self?.viewDidLayoutSubviews()
-         
-         })
-         */
     }
     
     override func viewDidLayoutSubviews() {
@@ -183,11 +168,28 @@ class CliqzIntroViewController: UIViewController {
         imageViewContainer.addArrangedSubview(imageView)
         imageView.snp.makeConstraints { make in
             make.height.equalTo(imageViewContainer.snp.height)
-            make.width.equalTo(imageViewContainer.snp.height)
+            make.width.equalTo(self.view.snp.width)
         }
         
-        let cardView = CliqzCardView(verticleSpacing: verticalPadding)
+        let cardView: CliqzCardView
+        // In case there are tick buttons everything needs to be closer together
+        if card.tickButtons != nil {
+            cardView = CliqzCardView(verticleSpacing: 10.0)
+        }
+        else {
+            cardView = CliqzCardView(verticleSpacing: verticalPadding)
+        }
         cardView.configureWith(card: card)
+        
+        //assumption: Only one card with tickButtons
+        if let tickButtons = cardView.tickButtons {
+            for i in 0..<tickButtons.count {
+                let tickButton = tickButtons[i]
+                tickButton.addTarget(self, action: #selector(tickButtonPressed), for: .touchUpInside)
+                tickButton.tag = i + 1
+            }
+        }
+        
         if let _ = card.optInText, let _ = card.optInToggleValue { /*, self.responds(to: NSSelectorFromString(selectorString)) {*/
             //cardView.button.addTarget(self, action: NSSelectorFromString(selectorString), for: .touchUpInside)
             cardView.optInView.snp.makeConstraints { make in
@@ -198,24 +200,94 @@ class CliqzIntroViewController: UIViewController {
         }
         self.view.addSubview(cardView)
         cardView.snp.makeConstraints { make in
-            make.top.equalTo(self.imageViewContainer.snp.bottom).offset(verticalPadding)
+            make.top.equalTo(self.imageViewContainer.snp.bottom)//.offset(verticalPadding)
             make.bottom.equalTo(self.startBrowsingButton.snp.top)
             make.left.right.equalTo(self.view).inset(10)
         }
         return cardView
     }
     
-    func startBrowsing() {
+    @objc func tickButtonPressed(_ sender: UIButton) {
+        //assume: Only one card with tick buttons
+        let tickButtonCard = cardViews.filter { (card) -> Bool in
+            return card.tickButtons != nil
+            }.first
+        
+        if let tickButtonCard = tickButtonCard, let tickButtons = tickButtonCard.tickButtons {
+            for tickButton in tickButtons {
+                tickButton.isSelected = false
+            }
+        }
+        
+        sender.isSelected = true
+        
+        // Show next card
+//        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+//            if (self?.pageControl.currentPage ?? 0) + 1 <= (self?.pageControl.numberOfPages ?? 0) {
+//                self?.pageControl.currentPage += 1
+//                self?.changePage()
+//            }
+//        }
+        
+        //assumption: Only one card with tickButtons, the Antitracking card
+        if sender.tag == 1 { // Block Nothing
+            blockOptionSelected = .none
+        }
+        else if sender.tag == 2 { //Block Recommended
+            blockOptionSelected = .recommended
+        }
+        else if sender.tag == 3 { //BlockEverything
+            blockOptionSelected = .all
+        }
+    }
+    
+    @objc func startBrowsing() {
+        // Start the necessary stuff for antitracking
+        
+        let populateOp = PopulateBlockedTrackersOperation()
+        
+        var loadOp: LoadTrackerListOperation? = nil
+        
+        let loadOperations = GlobalPrivacyQueue.shared.operations.filter { (op) -> Bool in
+            return op is LoadTrackerListOperation && !(op.isFinished || op.isCancelled)
+        }
+        
+        if !loadOperations.isEmpty, let loadOperation = loadOperations.first as? LoadTrackerListOperation {
+            loadOp = loadOperation
+        }
+        
+        func addOp(operation: Operation) {
+            if let loadOperation = loadOp {
+                operation.addDependency(loadOperation)
+            }
+            
+            populateOp.addDependency(operation)
+            
+            GlobalPrivacyQueue.shared.addOperation(operation)
+            GlobalPrivacyQueue.shared.addOperation(populateOp)
+        }
+        
+        if blockOptionSelected != .recommended {
+            let blockOption: ChangeTrackersOperation.BlockOption =  blockOptionSelected == .all ? .blockAll : .unblockAll
+            
+            let operation = ChangeTrackersOperation(blockOption: blockOption)
+            addOp(operation: operation)
+        }
+        else {
+            let applyDefaultsOp = ApplyDefaultsOperation()
+            addOp(operation: applyDefaultsOp)
+            UserDefaults.standard.set(true, forKey: trackersDefaultsAreAppliedKey)
+            UserDefaults.standard.synchronize()
+        }
+        
         delegate?.introViewControllerDidFinish(self, requestToLogin: false)
-        LeanPlumClient.shared.track(event: .dismissedOnboarding, withParameters: ["dismissedOnSlide": pageControl.currentPage as AnyObject])
     }
     
     func login() {
         delegate?.introViewControllerDidFinish(self, requestToLogin: true)
-        LeanPlumClient.shared.track(event: .dismissedOnboardingShowLogin, withParameters: ["dismissedOnSlide": pageControl.currentPage as AnyObject])
     }
     
-    func changePage() {
+    @objc func changePage() {
         let swipeCoordinate = CGFloat(pageControl.currentPage) * scrollView.frame.size.width
         scrollView.setContentOffset(CGPoint(x: swipeCoordinate, y: 0), animated: true)
     }
@@ -225,15 +297,17 @@ class CliqzIntroViewController: UIViewController {
             return
         }
         
-        UIView.animate(withDuration: IntroUX.FadeDuration, animations: { _ in
+        UIView.animate(withDuration: IntroUX.FadeDuration, animations: {
             self.cardViews.forEach { $0.alpha = 0.0 }
             introView.alpha = 1.0
+            introView.superview?.bringSubview(toFront: introView)
+            introView.isUserInteractionEnabled = true
             self.pageControl.currentPage = page
         }, completion: nil)
     }
     
     func imageContainerSize() -> CGSize {
-        return CGSize(width: self.view.frame.width * CGFloat(cards.count), height: 375)
+        return CGSize(width: self.view.frame.width * CGFloat(cards.count), height: CliqzIntroUX.imageHeight)
     }
 }
 
@@ -242,6 +316,7 @@ extension CliqzIntroViewController: OptInViewDelegate {
         if pageControl.currentPage == 0 {
             SettingsPrefs.shared.updateSendUsageDataPref(value)
             SettingsPrefs.shared.updateHumanWebPref(value)
+            SettingsPrefs.shared.updateSendCrashReportsPref(value)
         }
     }
 }
@@ -267,7 +342,30 @@ extension CliqzIntroViewController {
 extension CliqzIntroViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        NotificationCenter.default.addObserver(self, selector: #selector(dynamicFontChanged), name: .DynamicFontChanged, object: nil)
+        
+        // Gradient Background
+        let gradient: CAGradientLayer = CAGradientLayer()
+        
+        gradient.colors = [UIColor(red:0.31, green:0.67, blue:0.91, alpha:1.00).cgColor, UIColor.black.cgColor]
+        gradient.locations = [0.0 , 1.0]
+        let width: CGFloat
+        let height: CGFloat
+        
+        //Fix for gradient bug when the intro is shown while the device is in landscape.
+        if UIDevice.current.getDeviceAndOrientation().1 == .portrait && self.view.frame.size.width > self.view.frame.size.height {
+            width = self.view.frame.size.height
+            height = self.view.frame.size.width
+        }
+        else {
+            width = self.view.frame.width
+            height = self.view.frame.height
+        }
+        
+        gradient.frame = CGRect(x: 0.0, y: 0.0, width: width, height: height)
+        
+        self.view.layer.insertSublayer(gradient, at: 0)
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(dynamicFontChanged(_:)), name: .DynamicFontChanged, object: nil)
     }
     
     override func viewWillDisappear(_ animated: Bool) {
@@ -275,7 +373,7 @@ extension CliqzIntroViewController {
         NotificationCenter.default.removeObserver(self, name: .DynamicFontChanged, object: nil)
     }
     
-    func dynamicFontChanged(_ notification: Notification) {
+    @objc func dynamicFontChanged(_ notification: Notification) {
         guard notification.name == .DynamicFontChanged else { return }
         setupDynamicFonts()
     }
@@ -283,9 +381,9 @@ extension CliqzIntroViewController {
     fileprivate func setupDynamicFonts() {
         startBrowsingButton.titleLabel?.font = UIFont(name: "FiraSans-Regular", size: DynamicFontHelper.defaultHelper.IntroStandardFontSize)
         cardViews.forEach { cardView in
-            cardView.titleLabel.font = UIFont(name: "FiraSans-Medium", size: 25)
-            cardView.textLabel.font = UIFont(name: "FiraSans-UltraLight", size: DynamicFontHelper.defaultHelper.IntroStandardFontSize)
-            cardView.optInView.textLabel.font = UIFont(name: "FiraSans-UltraLight", size: DynamicFontHelper.defaultHelper.IntroStandardFontSize)
+            cardView.titleLabel.font = UIFont(name: "FiraSans-Medium", size: 22)
+            cardView.textLabel.font = UIFont(name: "FiraSans-Regular", size: DynamicFontHelper.defaultHelper.IntroStandardFontSize)
+            cardView.optInView.textLabel.font = UIFont(name: "FiraSans-Regular", size: DynamicFontHelper.defaultHelper.IntroStandardFontSize)
         }
     }
 }
@@ -314,17 +412,7 @@ extension CliqzIntroViewController: UIScrollViewDelegate {
     }
     
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        let maximumHorizontalOffset = scrollView.frame.width
-        let currentHorizontalOffset = scrollView.contentOffset.x
-        
-        var percentageOfScroll = currentHorizontalOffset / maximumHorizontalOffset
-        percentageOfScroll = percentageOfScroll > 1.0 ? 1.0 : percentageOfScroll
-        let whiteComponent = UIColor.white.components
-        let grayComponent = UIColor(rgb: 0xF2F2F2).components
-        let newRed   = (1.0 - percentageOfScroll) * whiteComponent.red   + percentageOfScroll * grayComponent.red
-        let newGreen = (1.0 - percentageOfScroll) * whiteComponent.green + percentageOfScroll * grayComponent.green
-        let newBlue  = (1.0 - percentageOfScroll) * whiteComponent.blue  + percentageOfScroll * grayComponent.blue
-        imagesBackgroundView.backgroundColor = UIColor(red: newRed, green: newGreen, blue: newBlue, alpha: 1.0)
+        //empty
     }
 }
 
@@ -344,8 +432,8 @@ class CliqzCardView: UIView {
         titleLabel.adjustsFontSizeToFitWidth = true
         titleLabel.minimumScaleFactor = IntroUX.MinimumFontScale
         titleLabel.textAlignment = .center
-        titleLabel.textColor = .white
-        titleLabel.setContentHuggingPriority(1000, for: .vertical)
+        titleLabel.textColor = UIColor.white
+        titleLabel.setContentHuggingPriority(UILayoutPriority(rawValue: 1000), for: .vertical)
         return titleLabel
     }()
     
@@ -355,9 +443,9 @@ class CliqzCardView: UIView {
         textLabel.adjustsFontSizeToFitWidth = true
         textLabel.minimumScaleFactor = IntroUX.MinimumFontScale
         textLabel.textAlignment = .center
-        textLabel.textColor = .white
+        textLabel.textColor = UIColor.white
         textLabel.lineBreakMode = .byTruncatingTail
-        textLabel.setContentHuggingPriority(1000, for: .vertical)
+        textLabel.setContentHuggingPriority(UILayoutPriority(rawValue: 1000), for: .vertical)
         return textLabel
     }()
     
@@ -368,9 +456,37 @@ class CliqzCardView: UIView {
         optInView.textLabel.adjustsFontSizeToFitWidth = true
         optInView.textLabel.minimumScaleFactor = 0.2
         optInView.textLabel.textAlignment = .left
-        optInView.textLabel.textColor = .white
+        optInView.textLabel.textColor = UIColor.white
         return optInView
     }()
+    
+    var tickButtons: [TickButton]? = nil
+    
+    var tickButtonHeight: CGFloat {
+        return UIScreen.main.bounds.width <= 320 ? 40 : 50
+    }
+    
+    var tickButtonTitleHeight: CGFloat {
+        return UIScreen.main.bounds.width <= 320 ? 14 : 16
+    }
+    
+    func createTickButton(info: TickButtonInfo) -> TickButton {
+        
+        var subtitle: Bool = false
+        
+        if info.subtitle != nil {
+            subtitle = true
+        }
+        
+        let tickButton = TickButton(subtitle: subtitle)
+        tickButton.accessibilityIdentifier = info.accessibilityIdentifier
+        tickButton.setTitle(info.title, for: [])
+        tickButton.subtitleLabel.text = info.subtitle
+        if info.selected {
+            tickButton.isSelected = true
+        }
+        return tickButton
+    }
     
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -387,6 +503,7 @@ class CliqzCardView: UIView {
             make.bottom.lessThanOrEqualTo(self).offset(-IntroUX.PageControlHeight)
         }
         alpha = 0
+        self.isUserInteractionEnabled = true
     }
     
     func configureWith(card: CliqzIntroCard) {
@@ -395,9 +512,46 @@ class CliqzCardView: UIView {
         if let optInText = card.optInText, let optInToggleValue = card.optInToggleValue {
             stackView.addArrangedSubview(optInView)
             optInView.textLabel.text = optInText
-            optInView.toggle.isOn = optInToggleValue
+            optInView.toggle.isSelected = optInToggleValue
             // When there is a button reduce the spacing to make more room for text
             stackView.spacing = stackView.spacing / 2
+        }
+        
+        if let tickButtonsInfo = card.tickButtons {
+            
+            let buttonStackView = UIStackView()
+            buttonStackView.axis = .vertical
+            buttonStackView.alignment = .center
+            buttonStackView.spacing = 0
+            
+            stackView.addArrangedSubview(buttonStackView)
+            buttonStackView.snp.makeConstraints { (make) in
+                make.left.right.equalToSuperview()
+            }
+            
+            tickButtons = []
+            for i in 0..<tickButtonsInfo.count {
+                let info = tickButtonsInfo[i]
+                let tickButton = createTickButton(info: info)
+                buttonStackView.addArrangedSubview(tickButton)
+                tickButton.snp.makeConstraints { (make) in
+                    make.left.right.equalToSuperview()
+                    make.height.equalTo(tickButtonHeight)
+                }
+                if i != tickButtonsInfo.count - 1 {
+                    tickButton.bottomSep.isHidden = true
+                }
+                tickButton.labelTextColor = .white
+                tickButton.subtitleLabelTextColor = .white
+                tickButton.label.font = UIFont.systemFont(ofSize: tickButtonTitleHeight)
+                tickButton.subtitleLabel.font = UIFont.systemFont(ofSize: 12)
+                tickButton.sepColor = UIColor.white.withAlphaComponent(0.2)
+                tickButton.bgColorSelected = UIColor.white.withAlphaComponent(0.2)
+                tickButton.isEnabled = true
+                tickButton.isUserInteractionEnabled = true
+                
+                tickButtons?.append(tickButton)
+            }
         }
     }
     
@@ -406,6 +560,18 @@ class CliqzCardView: UIView {
         if let buttonSV = optInView.superview {
             return convert(optInView.frame, from: buttonSV).contains(point)
         }
+        if let tickButtons = tickButtons, !tickButtons.isEmpty, let SV = tickButtons.first!.superview {
+            var values: [Bool] = Array.init(repeating: false, count: tickButtons.count)
+            for i in 0..<tickButtons.count {
+                let button = tickButtons[i]
+                values[i] = convert(button.frame, from: SV).contains(point)
+            }
+            
+            return !(values.filter { (a) -> Bool in
+                return a == true
+            }.isEmpty)
+        }
+        
         return false
     }
     
@@ -414,27 +580,58 @@ class CliqzCardView: UIView {
     }
 }
 
+struct TickButtonInfo: Codable {
+    let title: String
+    let subtitle: String?
+    let selected: Bool
+    let accessibilityIdentifier: String?
+}
+
 struct CliqzIntroCard: Codable {
     let title: String
     let text: String
     let imageName: String
     let optInText: String?
     let optInToggleValue: Bool?
+    let tickButtons: [TickButtonInfo]?
     
-    init(title: String, text: String, imageName: String, optInText: String? = nil, optInToggleValue: Bool? = nil) {
+    init(title: String, text: String, imageName: String, optInText: String? = nil, optInToggleValue: Bool? = nil, tickButtons: [TickButtonInfo]? = nil) {
         self.title = title
         self.text = text
         self.imageName = imageName
         self.optInText = optInText
         self.optInToggleValue = optInToggleValue
+        self.tickButtons = tickButtons
     }
     
     static func defaultCards() -> [CliqzIntroCard] {
-        let welcome = CliqzIntroCard(title: CliqzStrings.Onboarding.introTitle, text: CliqzStrings.Onboarding.introText, imageName: "ghostery-Introduction", optInText: CliqzStrings.Onboarding.telemetryText, optInToggleValue: true)
-        let adblock = CliqzIntroCard(title: CliqzStrings.Onboarding.adblockerTitle, text: CliqzStrings.Onboarding.adblockerText, imageName: "ghostery-Adblock")
-        let quicksearch = CliqzIntroCard(title: CliqzStrings.Onboarding.quickSearchTitle, text: CliqzStrings.Onboarding.quickSearchText, imageName: "ghostery-QuickSearch")
-        let freshtab = CliqzIntroCard(title: CliqzStrings.Onboarding.tabTitle, text: CliqzStrings.Onboarding.tabText, imageName: "ghostery-CliqzTab")
+        
+        var oldUser: Bool = false
+        if let _ = UserDefaults.standard.value(forKey: HasRunBeforeKey) as? String {
+            oldUser = true
+        }
+        
+        let OnboardingStrings = CliqzStrings.Onboarding()
+        
+        let welcome: CliqzIntroCard
+        if oldUser {
+            welcome = CliqzIntroCard(title: OnboardingStrings.introTitleOldUsers, text: OnboardingStrings.introTextOldUsers, imageName: "ghostery-Introduction", optInText: OnboardingStrings.telemetryText, optInToggleValue: true)
+        }
+        else {
+            welcome = CliqzIntroCard(title: OnboardingStrings.introTitle, text: OnboardingStrings.introText, imageName: "ghostery-Introduction", optInText: OnboardingStrings.telemetryText, optInToggleValue: true)
+        }
+        let adblock = CliqzIntroCard(title: OnboardingStrings.adblockerTitle, text: OnboardingStrings.adblockerText, imageName: "ghostery-Adblock", tickButtons: CliqzIntroCard.createAdblockerTickButtons())
+        let quicksearch = CliqzIntroCard(title: OnboardingStrings.quickSearchTitle, text: OnboardingStrings.quickSearchText, imageName: "ghostery-QuickSearch")
+        let freshtab = CliqzIntroCard(title: OnboardingStrings.tabTitle, text: OnboardingStrings.tabText, imageName: "ghostery-CliqzTab")
         return [welcome, adblock, quicksearch, freshtab]
+    }
+    
+    static func createAdblockerTickButtons() -> [TickButtonInfo] {
+        let OnboardingStrings = CliqzStrings.Onboarding()
+        let first = TickButtonInfo(title: OnboardingStrings.blockNothingTickButtonTitle, subtitle: nil, selected: false, accessibilityIdentifier: "BlockNothingButtonTitle")
+        let second = TickButtonInfo(title: OnboardingStrings.blockRecommendedTickButtonTitle, subtitle: OnboardingStrings.blockRecommendedTickButtonSubTitle, selected: true, accessibilityIdentifier: "BlockRecommendedButtonTitle")
+        let third = TickButtonInfo(title: OnboardingStrings.blockEverythingTickButtonTitle, subtitle: nil, selected: false, accessibilityIdentifier: "BlockEverythingButtonTitle")
+        return [first, second, third]
     }
     
     /* Codable doesnt allow quick conversion to a dictonary */
@@ -455,14 +652,16 @@ protocol OptInViewDelegate: class {
 }
 
 class OptInView: UIView {
-    let toggle = UISwitch()
+    let toggle = UIButton()
     let textLabel = UILabel()
     
     weak var delegate: OptInViewDelegate? = nil
     
     override init(frame: CGRect) {
         super.init(frame: frame)
-        toggle.addTarget(self, action: #selector(toggled), for: .valueChanged)
+        toggle.addTarget(self, action: #selector(toggled), for: .touchUpInside)
+		toggle.setImage(UIImage(named: "blank"), for: .normal)
+		toggle.setImage(UIImage(named: "selected"), for: .selected)
         addSubview(toggle)
         addSubview(textLabel)
         setConstraints()
@@ -475,19 +674,19 @@ class OptInView: UIView {
     func setConstraints() {
         toggle.snp.makeConstraints { (make) in
             make.centerY.equalToSuperview()
-            make.trailing.equalToSuperview()
+            make.leading.equalToSuperview().offset(5)
+			make.width.height.equalTo(40)
         }
         
         textLabel.snp.makeConstraints { (make) in
-            make.top.bottom.leading.equalToSuperview()
-            make.width.equalToSuperview().offset(-toggle.intrinsicContentSize.width)
+            make.top.bottom.equalToSuperview()
+			make.leading.equalTo(toggle.snp.trailing).offset(7)
+            make.trailing.equalToSuperview().offset(-7)
         }
     }
     
-    @objc func toggled(_ sender: UISwitch) {
-        self.delegate?.toggled(value: sender.isOn)
+    @objc func toggled(_ sender: UIButton) {
+		sender.isSelected = !sender.isSelected
+        self.delegate?.toggled(value: sender.isSelected)
     }
 }
-
-
-

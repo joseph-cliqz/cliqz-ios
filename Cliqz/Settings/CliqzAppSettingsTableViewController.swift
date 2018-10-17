@@ -30,17 +30,11 @@ class CliqzAppSettingsTableViewController: AppSettingsTableViewController {
         let searchSettingsTitle = NSLocalizedString("Search", tableName: "Cliqz", comment: "[Settings] Search section title")
         settings += [ SettingSection(title: NSAttributedString(string: searchSettingsTitle), children: searchSettings)]
         
-        #if GHOSTERY
-        // Ghostery Tab Settings
-        let ghosteryTabSettings = generateCliqzTabSettings(prefs: prefs)
-        let ghosteryTabTitle = NSLocalizedString("Ghostery Tab", tableName: "Cliqz", comment: "[Settings] Ghostery Tab section header")
-        settings += [ SettingSection(title: NSAttributedString(string: ghosteryTabTitle), children: ghosteryTabSettings)]
-        #else
         // Cliqz Tab Settings
         let cliqzTabSettings = generateCliqzTabSettings(prefs: prefs)
-        let cliqzTabTitle = NSLocalizedString("Cliqz Tab", tableName: "Cliqz", comment: "[Settings] Cliqz Tab section header")
+        let cliqzTabTitle = NSLocalizedString("Fresh Tab", tableName: "Cliqz", comment: "[Settings] Freshtab section header")
         settings += [ SettingSection(title: NSAttributedString(string: cliqzTabTitle), children: cliqzTabSettings)]
-        #endif
+        
         
         // Browsing & History Settings
         let browsingAndHistorySettings = generateBrowsingAndHistorySettings(prefs: prefs)
@@ -87,7 +81,7 @@ class CliqzAppSettingsTableViewController: AppSettingsTableViewController {
         let humanWebSetting = HumanWebSetting(settings: self)
         
         #if GHOSTERY
-        let cliqzSearchTitle = NSLocalizedString("Cliqz Search", tableName: "Cliqz", comment: "[Settings] Cliqz Search")
+        let cliqzSearchTitle = NSLocalizedString("Quick Search", tableName: "Cliqz", comment: "[Settings] Quick Search")
         let cliqzSearchSetting = BoolSetting(prefs: prefs, prefKey: SettingsPrefs.CliqzSearchPrefKey, defaultValue: true, titleText: cliqzSearchTitle)
         #endif
         
@@ -125,43 +119,42 @@ class CliqzAppSettingsTableViewController: AppSettingsTableViewController {
                         titleText: NSLocalizedString("Block Pop-up Windows", comment: "Block pop-up windows setting")),
             BoolSetting(prefs: prefs, prefKey: "saveLogins", defaultValue: true,
                         titleText: NSLocalizedString("Save Logins", comment: "Setting to enable the built-in password manager")),
-            LimitMobileDataUsageSetting(settings: self),
-            AdBlockerSetting(settings: self)
+            LimitMobileDataUsageSetting(settings: self)
             ]
         
-        if AppConstants.MOZ_CLIPBOARD_BAR {
-            browsingAndHistorySettings += [
-                BoolSetting(prefs: prefs, prefKey: "showClipboardBar", defaultValue: false,
-                            titleText: Strings.SettingsOfferClipboardBarTitle,
-                            statusText: Strings.SettingsOfferClipboardBarStatus)
-            ]
-        }
+        let statusText = NSLocalizedString("When Opening Ghostery", tableName: "Cliqz", comment: "Description displayed under the ”Offer to Open Copied Link” option.")
+        browsingAndHistorySettings += [
+            BoolSetting(prefs: prefs, prefKey: "showClipboardBar", defaultValue: false,
+                        titleText: Strings.SettingsOfferClipboardBarTitle,
+                        statusText: statusText)
+        ]
         
         return browsingAndHistorySettings
     }
-    
     
     private func generatePrivacySettings(prefs: Prefs) -> [Setting] {
         
         let privacySettings = [ LoginsSetting(settings: self, delegate: settingsDelegate),
                                 TouchIDPasscodeSetting(settings: self),
-                                AutoForgetTabSetting(settings: self),
+                                // Hide AutoForgetTab Settings as it is not implemented yet
+                                // AutoForgetTabSetting(settings: self),
                                 BoolSetting(prefs: prefs,
                                             prefKey: "settings.closePrivateTabs",
                                             defaultValue: false,
                                             titleText: NSLocalizedString("Close Forget Tabs", tableName: "Cliqz", comment: "Setting for closing forget tabs"),
-                                            statusText: NSLocalizedString("When Leaving Forget Browsing", tableName: "Cliqz", comment: "Will be displayed in Settings under 'Close Forget Tabs'")),
-                                ClearPrivateDataSetting(settings: self)]
+                                            statusText: NSLocalizedString("When Leaving Forget Mode", tableName: "Cliqz", comment: "Will be displayed in Settings under 'Close Forget Tabs'")),
+                                ClearPrivateDataSetting(settings: self),
+                                RestoreTopSitesSetting(settings: self)]
         
         return privacySettings
     }
     
     private func generateHelpSettings(prefs: Prefs) -> [Setting] {
-        
         let helpSettings = [
+            FAQSetting(delegate: settingsDelegate),
             SupportSetting(delegate: settingsDelegate),
-            CliqzTipsAndTricksSetting(),
-            ReportWebsiteSetting(),
+            //CliqzTipsAndTricksSetting(),
+            //ReportWebsiteSetting(),
             SendCrashReportsSetting(settings: self),
             SendUsageDataSetting(settings: self),
             MyOffrzSetting()

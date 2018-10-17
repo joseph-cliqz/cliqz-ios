@@ -6,6 +6,7 @@
 //  Copyright © 2016 Ghostery. All rights reserved.
 //
 import Foundation
+import Storage
 
 @objc open class UserPreferences : NSObject {
     
@@ -26,14 +27,44 @@ import Foundation
     
     static let instance = UserPreferences()
     
+    public override init() {
+        super.init()
+        NotificationCenter.default.addObserver(self, selector: #selector(updateAntitrackingPref), name: Notification.Name.BlockedTrackerSetChanged, object: nil)
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc func updateAntitrackingPref(_ sender: Any?) {
+        if TrackerStateStore.shared.blockedTrackers.count == TrackerList.instance.appsList.count, self._antitrackingMode != .blockAll {
+            self._antitrackingMode = .blockAll
+            self.writeToDisk()
+        }
+        else if TrackerStateStore.shared.blockedTrackers.count != TrackerList.instance.appsList.count, self.antitrackingMode != .blockSomeOrNone {
+            self._antitrackingMode = .blockSomeOrNone
+            self.writeToDisk()
+        }
+    }
+    
     let TrackerListVersionKey = "TrackerListVersion"
     let AntitrackingModeKey = "AntitrackingMode"
     let AdblockingModeKey = "AdblockingMode"
+    let PrevAdblockingModeKey = "PreviousAdblockingMode"
     let PauseGhosteryDateKey = "PauseGhosteryDate"
-    let BlockNewTrackersKey = "block_new_trackers_by_default"
-    let HasRunBeforeKey = "NotFirstRun"
     
+    // antitracking mode is supposed to be set only in updateAntitrackingPref. It depends on the number of trackers blocked.
     var antitrackingMode: AntitrackingMode {
+        get {
+            return _antitrackingMode
+        }
+        
+        set {
+            //don't set
+        }
+    }
+    
+    private var _antitrackingMode: AntitrackingMode {
         get {
             if let mode = AntitrackingMode(rawValue: userDefaults().integer(forKey: AntitrackingModeKey)) {
                 return mode
@@ -49,15 +80,32 @@ import Foundation
     
     var adblockingMode: AdblockingMode {
         get {
-            if let mode = AdblockingMode(rawValue: userDefaults().integer(forKey: AdblockingModeKey)) {
-                return mode
+            if let mode = userDefaults().object(forKey: AdblockingModeKey) as? Int,
+                let blockingMode = AdblockingMode(rawValue: mode) {
+                return blockingMode
             }
             else {
-                return .blockNone
+                return .blockAll
             }
         }
         set {
+            prevAdblockingMode = adblockingMode
             userDefaults().set(newValue.rawValue, forKey: AdblockingModeKey)
+        }
+    }
+    
+    var prevAdblockingMode: AdblockingMode {
+        get {
+            if let mode = userDefaults().object(forKey: PrevAdblockingModeKey) as? Int,
+                let blockingMode = AdblockingMode(rawValue: mode) {
+                return blockingMode
+            }
+            else {
+                return .blockAll
+            }
+        }
+        set {
+            userDefaults().set(newValue.rawValue, forKey: PrevAdblockingModeKey)
         }
     }
     
@@ -117,21 +165,5 @@ import Foundation
     
     func setTrackerListVersion(_ value: NSNumber) {
         userDefaults().set(value.intValue, forKey: TrackerListVersionKey)
-    }
-    
-    func setAreNewTrackersBlocked(_ value: Bool) {
-        userDefaults().set(value, forKey: BlockNewTrackersKey)
-    }
-    
-    func areNewTrackersBlocked() -> Bool {
-        return userDefaults().bool(forKey: BlockNewTrackersKey)
-    }
-    
-    func setHasAppRunBefore(_ value: Bool) {
-        userDefaults().set(value, forKey: HasRunBeforeKey)
-    }
-    
-    func hasAppRunBefore() -> Bool {
-        return userDefaults().bool(forKey: HasRunBeforeKey)
     }
 }

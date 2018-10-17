@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import MessageUI
 
 // MARK:- cliqz settings
 class CliqzConnectSetting: Setting {
@@ -18,7 +19,7 @@ class CliqzConnectSetting: Setting {
         self.profile = settings.profile
         
         let title = NSLocalizedString("Connect", tableName: "Cliqz", comment: "[Settings] Connect")
-        super.init(title: NSAttributedString(string: title, attributes: [NSForegroundColorAttributeName: SettingsUX.TableViewRowTextColor]))
+        super.init(title: NSAttributedString(string: title, attributes: [NSAttributedStringKey.foregroundColor: SettingsUX.TableViewRowTextColor]))
     }
     
     override var accessoryType: UITableViewCellAccessoryType { return .disclosureIndicator }
@@ -48,7 +49,7 @@ class RegionalSetting: Setting {
     init(settings: SettingsTableViewController) {
         self.profile = settings.profile
         let title = NSLocalizedString("Search Results for", tableName: "Cliqz" , comment: "[Settings] Search Results for")
-        super.init(title: NSAttributedString(string: title, attributes: [NSForegroundColorAttributeName: SettingsUX.TableViewRowTextColor]))
+        super.init(title: NSAttributedString(string: title, attributes: [NSAttributedStringKey.foregroundColor: SettingsUX.TableViewRowTextColor]))
     }
     
     override func onClick(_ navigationController: UINavigationController?) {
@@ -95,7 +96,7 @@ class ComplementarySearchSetting: Setting, SearchEnginePickerDelegate {
     
     init(settings: SettingsTableViewController) {
         self.profile = settings.profile
-        super.init(title: NSAttributedString(string: NSLocalizedString("Complementary Search", tableName: "Cliqz", comment: "[Settings] Complementary Search"), attributes: [NSForegroundColorAttributeName: SettingsUX.TableViewRowTextColor]))
+        super.init(title: NSAttributedString(string: NSLocalizedString("Complementary Search", tableName: "Cliqz", comment: "[Settings] Complementary Search"), attributes: [NSAttributedStringKey.foregroundColor: SettingsUX.TableViewRowTextColor]))
     }
     
     override func onClick(_ navigationController: UINavigationController?) {
@@ -167,15 +168,76 @@ class AdBlockerSetting: CliqzOnOffSetting {
     }
 }
 
+class RestoreTopSitesSetting: Setting {
+    
+    let profile: Profile
+    weak var settingsViewController: SettingsTableViewController?
+    
+    init(settings: SettingsTableViewController) {
+        self.profile = settings.profile
+        self.settingsViewController = settings
+        let hiddenTopsitesCount = self.profile.history.getHiddenTopSitesCount()
+        var attributes: [NSAttributedStringKey : Any]?
+        if hiddenTopsitesCount > 0 {
+            attributes = [NSAttributedStringKey.foregroundColor: UIConstants.HighlightBlue]
+        } else {
+            attributes = [NSAttributedStringKey.foregroundColor: UIColor.lightGray]
+        }
+        
+        super.init(title: NSAttributedString(string: NSLocalizedString("Restore Most Visited Websites", tableName: "Cliqz", comment: "[Settings] Restore Most Visited Websites"), attributes: attributes))
+    }
+    
+    override func onClick(_ navigationController: UINavigationController?) {
+        guard self.profile.history.getHiddenTopSitesCount() > 0 else {
+            return
+        }
+        
+        let alertController = UIAlertController(
+            title: "",
+            message: NSLocalizedString("All most visited websites will be shown again on the startpage.", tableName: "Cliqz", comment: "[Settings] Text of the 'Restore Most Visited Websites' alert"),
+            preferredStyle: UIAlertControllerStyle.actionSheet)
+        
+        alertController.addAction(
+            UIAlertAction(title: NSLocalizedString("Cancel", tableName: "Cliqz", comment: "Cancel button in the 'Show blocked top-sites' alert"), style: .cancel) { (action) in
+                /* TODO: Telemetry
+                // log telemetry signal
+                let cancelSignal = TelemetryLogEventType.Settings("restore_topsites", "click", "cancel", nil, nil)
+                TelemetryLogger.sharedInstance.logEvent(cancelSignal)
+                */
+        })
+        alertController.addAction(
+            UIAlertAction(title: self.title?.string, style: .destructive) { (action) in
+                // reset top-sites
+                self.profile.history.resetHiddenTopSites()
+                
+                self.settingsViewController?.reloadSettings()
+                /* TODO: Telemetry
+                // log telemetry signal
+                let confirmSignal = TelemetryLogEventType.Settings("restore_topsites", "click", "confirm", nil, nil)
+                TelemetryLogger.sharedInstance.logEvent(confirmSignal)
+                */
+        })
+        navigationController?.present(alertController, animated: true, completion: nil)
+        /* TODO: Telemetry
+        // log telemetry signal
+        let restoreTopsitesSignal = TelemetryLogEventType.Settings("main", "click", "restore_topsites", nil, nil)
+        TelemetryLogger.sharedInstance.logEvent(restoreTopsitesSignal)
+        */
+    }
+}
 
-class SupportSetting: Setting {
+class FAQSetting: Setting {
     
     override var title: NSAttributedString? {
-        return NSAttributedString(string: NSLocalizedString("FAQ & Support", tableName: "Cliqz", comment: "[Settings] FAQ & Support"),attributes: [NSForegroundColorAttributeName: UIConstants.HighlightBlue])
+        return NSAttributedString(string: NSLocalizedString("FAQ", tableName: "Cliqz", comment: "[Settings] FAQ"), attributes: [NSAttributedStringKey.foregroundColor: UIConstants.HighlightBlue])
     }
     
     override var url: URL? {
+        #if GHOSTERY
+        return URL(string: "https://ghostery.zendesk.com/hc/en-us/categories/115000106334-iOS-Mobile-FAQ")
+        #else
         return URL(string: "https://cliqz.com/support")
+        #endif
     }
     
     override func onClick(_ navigationController: UINavigationController?) {
@@ -184,22 +246,49 @@ class SupportSetting: Setting {
         
         // TODO: Telemetry
         /*
+         // Cliqz: log telemetry signal
+         let contactSignal = TelemetryLogEventType.Settings("main", "click", "contact", nil, nil)
+         TelemetryLogger.sharedInstance.logEvent(contactSignal)
+         */
+    }
+}
+
+class SupportSetting: Setting {
+    
+    override var title: NSAttributedString? {
+        return NSAttributedString(string: NSLocalizedString("Support", tableName: "Cliqz", comment: "[Settings] Support"), attributes: [:])
+    }
+    
+    override var url: URL? {
+    #if GHOSTERY
+        return URL(string: "https://ghostery.zendesk.com/hc/en-us/requests/new")
+    #else
+        return URL(string: "https://cliqz.com/support")
+    #endif
+    }
+    
+    override func onClick(_ navigationController: UINavigationController?) {
+        navigationController?.dismiss(animated: true, completion: {})
+        
+        if !MFMailComposeViewController.canSendMail() {
+            self.delegate?.settingsOpenURLInNewTab(self.url!)
+        }
+        else if let nav = navigationController as? SettingsNavigationController, let vc = nav.popoverDelegate as? BrowserViewController {
+            let mailVC = MFMailComposeViewController()
+            mailVC.mailComposeDelegate = vc
+            mailVC.setToRecipients(["mobile@ghostery.com"])
+            mailVC.setSubject("Ghostery Mobile Browser Feedback")
+            mailVC.setMessageBody("[\(UIDevice.current.modelName), \(UIDevice.current.systemVersion), \(AppStatus.distVersion()), \(AppStatus.extensionVersion())]", isHTML: false)
+            
+            vc.present(mailVC, animated: true, completion: nil)
+        }
+        
+        // TODO: Telemetry
+        /*
         // Cliqz: log telemetry signal
         let contactSignal = TelemetryLogEventType.Settings("main", "click", "contact", nil, nil)
         TelemetryLogger.sharedInstance.logEvent(contactSignal)
         */
-    }
-    
-}
-
-class CliqzTipsAndTricksSetting: ShowCliqzPageSetting {
-    
-    override func getTitle() -> String {
-        return NSLocalizedString("Get the best out of CLIQZ", tableName: "Cliqz", comment: "[Settings] Get the best out of CLIQZ")
-    }
-    
-    override func getPageName() -> String {
-        return "tips-ios"
     }
 }
 
@@ -253,13 +342,18 @@ class MyOffrzSetting: ShowCliqzPageSetting {
     override func getPageName() -> String {
         return "myoffrz"
     }
+    #if GHOSTERY
+    override var url: URL? {
+        return URL(string: "https://www.ghostery.com/faqs/what-is-ghostery-rewards/")
+    }
+    #endif
 }
 
 
 class RateUsSetting: Setting {
     
     init() {
-        super.init(title: NSAttributedString(string: NSLocalizedString("Rate Us", tableName: "Cliqz", comment: "[Settings] Rate Us"), attributes: [NSForegroundColorAttributeName: UIConstants.HighlightBlue]))
+        super.init(title: NSAttributedString(string: NSLocalizedString("Rate Us", tableName: "Cliqz", comment: "[Settings] Rate Us"), attributes: [NSAttributedStringKey.foregroundColor: UIConstants.HighlightBlue]))
     }
     
     override func onClick(_ navigationController: UINavigationController?) {
@@ -285,7 +379,7 @@ class AboutSetting: Setting {
     
     init() {
         let title = NSLocalizedString("About", tableName: "Cliqz", comment: "[Settings] About")
-        super.init(title: NSAttributedString(string: title, attributes: [NSForegroundColorAttributeName: SettingsUX.TableViewRowTextColor]))
+        super.init(title: NSAttributedString(string: title, attributes: [NSAttributedStringKey.foregroundColor: SettingsUX.TableViewRowTextColor]))
     }
     
     override var accessoryType: UITableViewCellAccessoryType { return .disclosureIndicator }
@@ -295,6 +389,79 @@ class AboutSetting: Setting {
         let viewController = AboutSettingsTableViewController()
         viewController.title = self.title?.string
         navigationController?.pushViewController(viewController, animated: true)
+    }
+}
+
+class imprintSetting: ShowCliqzPageSetting {
+    
+    override func getTitle() -> String {
+        return NSLocalizedString("Imprint", tableName: "Cliqz", comment: "[Settings -> About] Imprint")
+    }
+    
+    override var url: URL? {
+        #if GHOSTERY
+        return URL(string: "https://www.ghostery.com/about-ghostery/")
+        #else
+        return URL(string: "https://cliqz.com/legal")
+        #endif
+        
+    }
+}
+
+class CliqzLicenseAndAcknowledgementsSetting: LocalResourceSetting {
+    override func getTitle() -> String {
+        return NSLocalizedString("Licenses", tableName: "Cliqz", comment: "[Settings -> About] Licenses")
+    }
+    
+    override func getResource() -> (String, String) {
+        return ("license", "about")
+    }
+}
+
+#if GHOSTERY
+class CliqzTipsAndTricksSetting: ShowCliqzPageSetting {
+    
+    override func getTitle() -> String {
+        return NSLocalizedString("Get the best out of CLIQZ", tableName: "Cliqz", comment: "[Settings] Get the best out of CLIQZ")
+    }
+    
+    override var url: URL? {
+        return URL(string: "https://www.ghostery.com")
+    }
+}
+
+class EulaSetting: ShowCliqzPageSetting {
+    
+    override func getTitle() -> String {
+        return NSLocalizedString("EULA", tableName: "Cliqz", comment: "[Settings -> About] EULA")
+    }
+    
+    override var url: URL? {
+        return URL(string: "https://www.ghostery.com/about-ghostery/mobile-browser-end-user-license-agreement/")
+    }
+}
+
+class CliqzPrivacyPolicySetting: ShowCliqzPageSetting {
+    
+    override func getTitle() -> String {
+        return NSLocalizedString("Privacy Policy", tableName: "Cliqz", comment: "[Settings -> About] Privacy Policy")
+    }
+    
+    override var url: URL? {
+        return URL(string: "https://www.ghostery.com/about-ghostery/mobile-browser-privacy-policy/")
+    }
+}
+
+#else
+
+class CliqzTipsAndTricksSetting: ShowCliqzPageSetting {
+    
+    override func getTitle() -> String {
+        return NSLocalizedString("Get the best out of CLIQZ", tableName: "Cliqz", comment: "[Settings] Get the best out of CLIQZ")
+    }
+    
+    override func getPageName() -> String {
+        return "tips-ios"
     }
 }
 
@@ -309,16 +476,6 @@ class EulaSetting: LocalResourceSetting {
     }
 }
 
-class CliqzLicenseAndAcknowledgementsSetting: LocalResourceSetting {
-    override func getTitle() -> String {
-        return NSLocalizedString("Licenses", tableName: "Cliqz", comment: "[Settings -> About] Licenses")
-    }
-    
-    override func getResource() -> (String, String) {
-        return ("license", "about")
-    }
-}
-
 class CliqzPrivacyPolicySetting: ShowCliqzPageSetting {
     
     override func getTitle() -> String {
@@ -329,3 +486,7 @@ class CliqzPrivacyPolicySetting: ShowCliqzPageSetting {
         return "mobile/privacy-cliqz-for-ios"
     }
 }
+
+#endif
+
+

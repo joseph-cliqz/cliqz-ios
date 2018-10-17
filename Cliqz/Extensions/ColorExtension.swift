@@ -13,6 +13,7 @@ extension UIColor {
 	static let cliqzBluePrimary = UIColor(colorString: "00AEF0")
     static let cliqzBlackPrimary = UIColor(colorString: "1A1A25")
     static let cliqzWhitePrimary = UIColor(colorString: "FFFFFF")
+    static let cliqzForgetPrimary =  UIColor(red: 0.067, green: 0.333, blue: 0.467, alpha: 1)
     
     //Secondary Colors
     static let cliqzBlueOneSecondary = UIColor(colorString: "0078CA")
@@ -44,58 +45,34 @@ extension UIColor {
     struct CliqzToolbar {
         static let Background = BrowserColor(normal: UIColor.black, pbm: UIColor.black)
     }
-    
-    struct Browser {
-        static let Background = BrowserColor(normal: Defaults.Grey10, pbm: Defaults.Grey10)
-        static let Text = BrowserColor(normal: .white, pbm: .white)
-        static let URLBarDivider = BrowserColor(normal: Defaults.MobileGreyC, pbm: Defaults.MobileGreyC)
-        static let LocationBarBackground = Defaults.Grey30
-        static let Tint = BrowserColor(normal: Defaults.Grey80, pbm: Defaults.Grey80)
+    struct CliqzURLBar {
+        static let Background = BrowserColor(normal: UIColor.cliqzBluePrimary, pbm: UIColor.cliqzForgetPrimary)
     }
     
-    struct URLBar {
-        static let Border = BrowserColor(normal: Defaults.Grey50, pbm: Defaults.Grey50)
-        static let ActiveBorder = BrowserColor(normal: Defaults.MobileBlueA, pbm: Defaults.MobileBlueA)
-        static let Tint = BrowserColor(normal: Defaults.MobileBlueB, pbm: Defaults.MobileBlueB)
-    }
-    
-    struct TextField {
-        static let Background = BrowserColor(normal: .white, pbm: .white)
-        static let TextAndTint = BrowserColor(normal: Defaults.Grey80, pbm: Defaults.Grey80)
-        static let Highlight = BrowserColor(normal: Defaults.MobileBlueC, pbm: Defaults.MobileBlueC)
-        static let ReaderModeButtonSelected = BrowserColor(normal: Defaults.MobileBlueD, pbm: Defaults.MobileBlueD)
-        static let ReaderModeButtonUnselected = BrowserColor(normal: Defaults.Grey50, pbm: Defaults.Grey50)
-        static let PageOptionsSelected = ReaderModeButtonSelected
-        static let PageOptionsUnselected = UIColor.Browser.Tint
-        static let Separator = BrowserColor(normal: Defaults.MobileGreyJ, pbm: Defaults.MobileGreyJ)
-    }
-    
-    // The back/forward/refresh/menu button (bottom toolbar)
-    struct ToolbarButton {
-        static let SelectedTint = BrowserColor(normal: Defaults.MobileBlueD, pbm: Defaults.MobileBlueD)
-        static let DisabledTint = BrowserColor(normal: UIColor.lightGray, pbm: UIColor.lightGray)
-    }
-    
-    struct LoadingBar {
-        static let Start = BrowserColor(normal: Defaults.Purple50, pbm: Defaults.Purple50)
-        static let End = BrowserColor(normal: Defaults.Magenta50, pbm: Defaults.Magenta50)
-    }
-    
-    struct TabTray {
-        static let Background = Browser.Background
-    }
-    
-    struct TopTabs {
-        static let PrivateModeTint = BrowserColor(normal: Defaults.Grey10, pbm: Defaults.Grey10)
-        static let Background = UIColor.Defaults.Grey80
-    }
-    
-    struct HomePanel {
-        // These values are the same for both private/normal.
-        // The homepanel toolbar needed to be able to theme, not anymore.
-        // Keep this just in case someone decides they want it to theme again
-        static let ToolbarBackground = BrowserColor(normal: Defaults.Grey10, pbm: Defaults.Grey10)
-        static let ToolbarHighlight = BrowserColor(normal: Defaults.Blue50, pbm: Defaults.Blue50)
-        static let ToolbarTint = BrowserColor(normal: Defaults.Grey50, pbm: Defaults.Grey50)
-    }
+	struct ControlCenter {
+		static let restrictedColorSet = [
+			UIColor(colorString: "E74055"),
+			UIColor(colorString: "E95366"),
+			UIColor(colorString: "EC6677"),
+			UIColor(colorString: "EE7988"),
+			UIColor(colorString: "F18C99"),
+			UIColor(colorString: "F39FAA"),
+			UIColor(colorString: "F5B3BB"),
+			UIColor(colorString: "F7C5CC"),
+			UIColor(colorString: "FAD9DD")
+		]
+
+		static let pausedColorSet = [
+			UIColor(colorString: "97A4AE"),
+			UIColor(colorString: "A1ADB6"),
+			UIColor(colorString: "ACB6BE"),
+			UIColor(colorString: "B6BFC6"),
+			UIColor(colorString: "C1C8CE"),
+			UIColor(colorString: "CBD1D6"),
+			UIColor(colorString: "D5DBDF"),
+			UIColor(colorString: "DFE3E6"),
+			UIColor(colorString: "EAEDEF")
+		]
+
+	}
 }

@@ -11,26 +11,45 @@ import RealmSwift
 
 public class Domain: Object {
     @objc dynamic var name: String = ""
-    @objc dynamic var state: Int = 0 //0 none, 1 trusted, 2 restricted
+    @objc dynamic var adblockerState: Int = 0 // 0 none, 1 on, 2 off
+    //assumption: appIds are unique in these lists. Make sure your code enforces this.
     public var trustedTrackers = List<Int>()
     public var restrictedTrackers = List<Int>()
+    public var previouslyTrustedTrackers = List<Int>()
+    public var previouslyRestrictedTrackers = List<Int>()
     
     override static public func primaryKey() -> String? {
         return "name"
     }
     
-    public var translatedState: DomainState {
-        switch state {
-        case 0:
-            return .empty
-        case 1:
-            return .trusted
-        case 2:
-            return .restricted
-        default:
-            return .empty
+    public func translatedAdblockerState() -> AdblockerDomainState {
+        if adblockerState == 1 {
+            return .on
         }
+        else if adblockerState == 2 {
+            return .off
+        }
+        
+        return .none
     }
+    
+    public class func intForState(_ state: AdblockerDomainState) -> Int {
+        
+        if state == .on {
+            return 1
+        }
+        else if state == .off {
+            return 2
+        }
+        
+        return 0
+    }
+}
+
+public enum AdblockerDomainState {
+    case none
+    case on
+    case off
 }
 
 public enum DomainState {
@@ -42,113 +61,52 @@ public enum DomainState {
 public enum ListType {
     case trustedList
     case restrictedList
+    case prevTrustedList
+    case prevRestrictedList
 }
 
 public class DomainStore: NSObject {
     
     public class func get(domain: String) -> Domain? {
-        let realm = try! Realm()
-        if let domain = realm.object(ofType: Domain.self, forPrimaryKey: domain) {
-            return domain
+        if let realm = try? Realm() {
+            if let domain = realm.object(ofType: Domain.self, forPrimaryKey: domain) {
+                return domain
+            }
         }
         return nil
     }
     
-    public class func create(domain: String) -> Domain {
-        let realm = try! Realm()
-        let domainObj = Domain()
-        domainObj.name = domain
-        
-        do {
-            try realm.write {
-                realm.add(domainObj)
-            }
-        }
-        catch let error {
-            debugPrint(error)
-        }
-        
-        return domainObj
-    }
-    
-    public class func changeState(domain: Domain, state: DomainState) {
-        
-        let realm = try! Realm()
-        do {
-            try realm.write {
-                domain.state = intForState(state: state)
-                realm.add(domain, update: true)
-            }
-        }
-        catch {
-            debugPrint("could not change state of domain")
-        }
-    }
-    
-    public class func add(appId: Int, domain: Domain, list: ListType) {
-        
-        let realm = try! Realm()
-        do {
-            try realm.write {
-                
-                if list == .trustedList {
-                    domain.trustedTrackers.append(appId)
+    public class func changeAdblockerState(toState: AdblockerDomainState, domain: String, completion: @escaping () -> Void) {
+        RealmDBWriteQueue.shared.addOperation {
+            //All of the code in here needs to be syncronous
+            //If you add async code, you will need to do a custom operation where you correctly indicate when the operation is finished.
+            autoreleasepool {
+                if let realm = try? Realm() {
+                    
+                    guard realm.isInWriteTransaction == false else { return } //avoid exceptions
+                    realm.beginWrite()
+                    
+                    if let domainObj = realm.object(ofType: Domain.self, forPrimaryKey: domain) {
+                        domainObj.adblockerState = Domain.intForState(toState)
+                        realm.add(domainObj, update: true)
+                    }
+                    else {
+                        let domainObj = Domain()
+                        domainObj.name = domain
+                        domainObj.adblockerState = Domain.intForState(toState)
+                        realm.add(domainObj)
+                    }
+                    
+                    do {
+                        try realm.commitWrite()
+                    }
+                    catch {
+                        debugPrint("could not change state of trackerState")
+                        //do I need to cancel the write?
+                    }
                 }
-                else if list == .restrictedList {
-                    domain.restrictedTrackers.append(appId)
-                }
-                
-                realm.add(domain, update: true)
             }
-        }
-        catch {
-            debugPrint("could not add appId = \(appId) to list = \(list) of domain = \(domain.name)")
-        }
-    }
-    
-    public class func remove(appId: Int, domain: Domain, list: ListType) {
-        
-        let realm = try! Realm()
-        do {
-            try realm.write {
-                
-                if list == .trustedList {
-                    domain.trustedTrackers.remove(element: appId)
-                }
-                else if list == .restrictedList {
-                    domain.restrictedTrackers.remove(element: appId)
-                }
-                
-                realm.add(domain, update: true)
-            }
-        }
-        catch {
-            debugPrint("could not add appId = \(appId) to list = \(list) of domain = \(domain.name)")
-        }
-    }
-    
-    private class func intForState(state: DomainState) -> Int {
-        switch state {
-        case .empty:
-            return 0
-        case .trusted:
-            return 1
-        case .restricted:
-            return 2
-        }
-    }
-}
-
-extension List where Element: Comparable {
-    func remove(element: Element) {
-        let count = self.elements.count
-        for i in 0..<count {
-            //go backwards
-            let index = count - 1 - i
-            let item = self[index]
-            if item == element {
-                self.remove(at: index)
-            }
+            completion()
         }
     }
 }

@@ -6,20 +6,8 @@
 	<string>$(ADJUST_APP_TOKEN)</string>
 	<key>AdjustEnvironment</key>
 	<string>$(ADJUST_ENVIRONMENT)</string>
-	<key>MozDevelopmentTeam</key>
-	<string>$(DEVELOPMENT_TEAM)</string>
-	<key>LeanplumAppId</key>
-	<string></string>
-	<key>LeanplumProductionKey</key>
-	<string></string>
-	<key>LeanplumDevelopmentKey</key>
-	<string></string>
 	<key>AppIdentifierPrefix</key>
 	<string>$(APP_IDENTIFIER_PREFIX)</string>
-	<key>PocketEnvironmentAPIKey</key>
-	<string>$(POCKET_API_KEY)</string>
-	<key>MozWhatsNewTopic</key>
-	<string>whats-new-ios-11</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -41,11 +29,13 @@
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>org.mozilla.Client</string>
+			<string>com.cliqz.ios.newCliqz</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>firefox</string>
+				<string>ghostery</string>
 				<string>$(MOZ_INTERNAL_URL_SCHEME)</string>
 			</array>
 		</dict>
@@ -73,27 +63,43 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>LeanplumAppId</key>
+	<string></string>
+	<key>LeanplumDevelopmentKey</key>
+	<string></string>
+	<key>LeanplumProductionKey</key>
+	<string></string>
+	<key>MozDevelopmentTeam</key>
+	<string>$(DEVELOPMENT_TEAM)</string>
+	<key>MozWhatsNewTopic</key>
+	<string>whats-new-ios-12</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Websites you visit may request your location.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This lets you save and upload photos.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>This lets you take and upload photos.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This lets you take and upload videos.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>This lets you save photos.</string>
+	<string>This lets you scan, take and upload videos or photos.</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Firefox requires Face ID to access your saved logins.</string>
+	<string>Ghostery requires Face ID to access your saved logins.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location-based features or websites you visit may request your location.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ghostery will only use the microphone when you choose to record videos inside the browser.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Ghostery will only use this access to download videos and pictures to your device.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Ghostery will only use this access to download videos and pictures to your device.</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>org.mozilla.ios.firefox.browsing</string>
 	</array>
+	<key>PocketEnvironmentAPIKey</key>
+	<string>$(POCKET_API_KEY)</string>
+	<key>SentryDSN</key>
+	<string>$(SENTRY_DSN)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>CharisSILB.ttf</string>
@@ -114,7 +120,7 @@
 	<array>
 		<dict>
 			<key>UIApplicationShortcutItemIconFile</key>
-			<string>quick_action_new_tab</string>
+			<string>quick_action_new_cliqz_tab</string>
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>ShortcutItemTitleNewTab</string>
 			<key>UIApplicationShortcutItemType</key>
@@ -122,19 +128,11 @@
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconFile</key>
-			<string>quick_action_new_private_tab</string>
+			<string>quick_action_new_ghost_tab</string>
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>ShortcutItemTitleNewPrivateTab</string>
 			<key>UIApplicationShortcutItemType</key>
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER).NewPrivateTab</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemIconFile</key>
-			<string>menu-ScanQRCode</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>ShortcutItemTitleQRCode</string>
-			<key>UIApplicationShortcutItemType</key>
-			<string>$(PRODUCT_BUNDLE_IDENTIFIER).QRCode</string>
 		</dict>
 	</array>
 	<key>UIBackgroundModes</key>
@@ -142,12 +140,16 @@
 		<string>audio</string>
 		<string>remote-notification</string>
 	</array>
+	<key>UIFileSharingEnabled</key>
+	<false/>
 	<key>UILaunchStoryboardName</key>
-	<string>CliqzLaunchScreen</string>
+	<string>GhosteryLaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
 	</array>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -162,8 +164,6 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>SentryDSN</key>
-	<string>$(SENTRY_DSN)</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>UTImportedTypeDeclarations</key>

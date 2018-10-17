@@ -23,7 +23,7 @@ class ShareExtensionHelper: NSObject {
     func createActivityViewController(_ completionHandler: @escaping (_ completed: Bool, _ activityType: String?) -> Void) -> UIActivityViewController {
         // Cliqz: Configured special share menu for Freshtab
         if let url = selectedTab?.url, url.isAboutURL {
-            return createCliqzTabActivityController(completionHandler)
+            return createStartTabActivityController(completionHandler)
         }
         var activityItems = [AnyObject]()
 
@@ -42,6 +42,10 @@ class ShareExtensionHelper: NSObject {
             activityItems.append(TitleActivityItemProvider(title: title))
         }
         activityItems.append(self)
+        
+        // Cliqz: Added footer text to the share items
+        let footerText = generateFooterText()
+        activityItems.append(footerText as AnyObject)
 
         /* Cliqz: Added Application activities
         let activityViewController = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
@@ -90,12 +94,8 @@ extension ShareExtensionHelper: UIActivityItemSource {
         return selectedURL
     }
 
-    // IMPORTANT: This method needs Swift compiler optimization DISABLED to prevent a nasty
-    // crash from happening in release builds. It seems as though the check for `nil` may
-    // get removed by the optimizer which leads to a crash when that happens.
-    @_semantics("optimize.sil.never") func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivityType) -> Any? {
-        // activityType actually is nil sometimes (in the simulator at least)
-        if activityType != nil && isPasswordManagerActivityType(activityType.rawValue) {
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivityType?) -> Any? {
+        if let type = activityType, isPasswordManagerActivityType(type.rawValue) {
             return onePasswordExtensionItem
         } else {
             // Return the URL for the selected tab. If we are in reader view then decode
@@ -123,6 +123,7 @@ private extension ShareExtensionHelper {
             || (activityType == "com.lastpass.ilastpass.LastPassExt")
             || (activityType == "in.sinew.Walletx.WalletxExt")
             || (activityType == "com.8bit.bitwarden.find-login-action-extension")
+            || (activityType == "me.mssun.passforios.find-login-action-extension")
 
     }
 

@@ -15,7 +15,7 @@ class SearchEnginePicker: UITableViewController {
         /* Cliqz: Change title from Default Search Engine to Complementary Search Engine
         navigationItem.title = NSLocalizedString("Default Search Engine", comment: "Title for default search engine picker.")
         */
-        navigationItem.title = NSLocalizedString("Complementary Search Engine", comment: "Title for complementary search engine picker.")
+        navigationItem.title = NSLocalizedString("Complementary Search Engine", tableName: "Cliqz", comment: "Title for complementary search engine picker.")
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: NSLocalizedString("Cancel", comment: "Label for Cancel button"), style: .plain, target: self, action: #selector(cancel))
     }
 
@@ -44,7 +44,7 @@ class SearchEnginePicker: UITableViewController {
         tableView.cellForRow(at: indexPath)?.accessoryType = .none
     }
 
-    func cancel() {
+    @objc func cancel() {
         delegate?.searchEnginePicker(self, didSelectSearchEngine: nil)
     }
 }

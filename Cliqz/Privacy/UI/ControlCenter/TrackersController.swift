@@ -8,7 +8,8 @@
 
 import UIKit
 import SnapKit
-
+import RxSwift
+import Storage
 //This is a temporary solution until we build the Ghostery Control Center
 
 let trackerViewDismissedNotification = Notification.Name(rawValue: "TrackerViewDismissed")
@@ -20,7 +21,11 @@ struct ControlCenterUI {
 }
 
 class TrackersController: UIViewController {
-
+    
+    let headerView = CategoriesHeaderView()
+    
+    var expandedSections: Set<Int> = Set()
+    
 	var type: TableType = .page {
 		didSet {
 			self.tableView.reloadData()
@@ -33,15 +38,29 @@ class TrackersController: UIViewController {
 		}
 	}
 	weak var delegate: ControlCenterDelegateProtocol?
+	
+	let observable = BehaviorSubject(value: "")
 
     let tableView = UITableView()
-	var expandedSectionIndex = -1
 
     var changes = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
 		setupComponents()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        
+        if type == .page {
+            if self.dataSource?.isGhosteryPaused() == true {
+                headerView.actionButton.isEnabled = false
+            }
+            else {
+                headerView.actionButton.isEnabled = true
+            }
+        }
     }
 
     override func didReceiveMemoryWarning() {
@@ -50,7 +69,6 @@ class TrackersController: UIViewController {
     }
 
 	private func setupComponents() {
-		let headerView = CategoriesHeaderView()
 		headerView.addTarget(self, action: #selector(showActionSheet), for: .touchUpInside)
 		self.tableView.tableHeaderView = headerView
 		self.tableView.tableHeaderView?.frame = CGRect(x: 0, y: 0, width: self.tableView.frame.size.width, height: 80)
@@ -86,98 +104,146 @@ class TrackersController: UIViewController {
     private func showPageActionSheet(_ sender: Any) {
 		let blockTrustAlertController = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
 		
-		let restrictAll = UIAlertAction(title: NSLocalizedString("Restrict All", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Restrict All trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
-			self?.restrictAllCategories()
-		})
-		blockTrustAlertController.addAction(restrictAll)
-		let blockAll = UIAlertAction(title: NSLocalizedString("Block All", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Block All trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
-			self?.blockAllCategories()
-		})
-		blockTrustAlertController.addAction(blockAll)
+        if self.dataSource?.shouldShowBlockAll(tableType: type) == true {
+            let blockAll = UIAlertAction(title: NSLocalizedString("Block All", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Block All trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
+                 self?.blockAll()
+            })
+            blockTrustAlertController.addAction(blockAll)
+        }
+        
+        if self.dataSource?.shouldShowUnblockAll(tableType: type) == true {
+            let unblockAll = UIAlertAction(title: NSLocalizedString("Unblock All", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Unblock All trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
+                self?.unblockAll()
+            })
+            blockTrustAlertController.addAction(unblockAll)
+        }
 		
-		let trustAll = UIAlertAction(title: NSLocalizedString("Trust All", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Trust All trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
-			self?.trustAllCategories()
-		})
-		blockTrustAlertController.addAction(trustAll)
+        if self.dataSource?.shouldShowUndo(tableType: type) == true {
+            let undo = UIAlertAction(title: NSLocalizedString("Undo", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Undo trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
+                self?.undo()
+            })
+            blockTrustAlertController.addAction(undo)
+        }
 		
 		let cancelAction = UIAlertAction(title: NSLocalizedString("Cancel", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Cancel action title"), style: .cancel)
 		blockTrustAlertController.addAction(cancelAction)
         
-        if let presentation = blockTrustAlertController.popoverPresentationController, let v = sender as? UIView {
-            presentation.sourceView = v
-            presentation.sourceRect = CGRect(x: v.bounds.width/2, y: v.bounds.height/2 + 16, width: 0, height: 0)
-            presentation.canOverlapSourceViewRect = true
-            presentation.permittedArrowDirections = .up
-            self.present(blockTrustAlertController, animated: true, completion: nil)
-        }
-        else if UIDevice.current.isiPad() == false { //avoid crash
-            self.present(blockTrustAlertController, animated: true, completion: nil)
-        }
-        
+        presentActionSheet(actionSheet: blockTrustAlertController, sender: sender)
 	}
 
 	private func showGlobalActionSheet(_ sender: Any) {
 		let blockTrustAlertController = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+        
+        if self.dataSource?.shouldShowBlockAll(tableType: type) == true {
+            let blockAll = UIAlertAction(title: NSLocalizedString("Block All", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Block All trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
+                self?.blockAll()
+            })
+            blockTrustAlertController.addAction(blockAll)
+        }
 		
-		let blockAll = UIAlertAction(title: NSLocalizedString("Block All", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Block All trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
-			self?.blockAllCategories()
-		})
-		blockTrustAlertController.addAction(blockAll)
-		
-		let unblockAll = UIAlertAction(title: NSLocalizedString("Revert", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Revert trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
-			self?.unblockAllCategories()
-		})
-		blockTrustAlertController.addAction(unblockAll)
+        if self.dataSource?.shouldShowUnblockAll(tableType: type) == true {
+            let unblockAll = UIAlertAction(title: NSLocalizedString("Unblock All", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Unblock All trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
+                self?.unblockAll()
+            })
+            blockTrustAlertController.addAction(unblockAll)
+        }
+        
+        if self.dataSource?.shouldShowUndo(tableType: type) == true {
+            let undo = UIAlertAction(title: NSLocalizedString("Undo", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Undo trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
+                self?.undo()
+            })
+            blockTrustAlertController.addAction(undo)
+        }
+        
+        let restore = UIAlertAction(title: NSLocalizedString("Restore Default Settings", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Restore Default Settings trackers action title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
+            self?.showResetActionSheet(sender)
+        })
+        blockTrustAlertController.addAction(restore)
 		
 		let cancelAction = UIAlertAction(title: NSLocalizedString("Cancel", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Cancel action title"), style: .cancel)
 		blockTrustAlertController.addAction(cancelAction)
         
-        if let presentation = blockTrustAlertController.popoverPresentationController, let v = sender as? UIView {
+        presentActionSheet(actionSheet: blockTrustAlertController, sender: sender)
+	}
+    
+    private func showResetActionSheet(_ sender: Any) {
+        
+        let actionsheetMessage = NSLocalizedString("Replace previous changes to site and global trackers with the recommended settings? (blocks Ads, Site Analytics, and Adult Advertising)", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Reset actionsheet title")
+        
+        let actionSheet = UIAlertController(title: nil, message: actionsheetMessage, preferredStyle: .actionSheet)
+        
+        let reset = UIAlertAction(title: NSLocalizedString("Reset", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Reset action title"), style: .destructive, handler: { [weak self] (alert: UIAlertAction) -> Void in
+            self?.restoreDefaultSettings()
+        })
+        actionSheet.addAction(reset)
+        
+        let cancelAction = UIAlertAction(title: NSLocalizedString("Cancel", tableName: "Cliqz", comment: "[ControlCenter - Trackers list] Cancel action title"), style: .cancel)
+        actionSheet.addAction(cancelAction)
+        
+        presentActionSheet(actionSheet: actionSheet, sender: sender)
+    }
+    
+    private func presentActionSheet(actionSheet: UIAlertController, sender: Any) {
+        if let presentation = actionSheet.popoverPresentationController, let v = sender as? UIView {
             presentation.sourceView = v
             presentation.sourceRect = CGRect(x: v.bounds.width/2, y: v.bounds.height/2 + 16, width: 0, height: 0)
             presentation.canOverlapSourceViewRect = true
             presentation.permittedArrowDirections = .up
-            self.present(blockTrustAlertController, animated: true, completion: nil)
+            self.present(actionSheet, animated: true, completion: nil)
         }
         else if UIDevice.current.isiPad() == false { //avoid crash
-            self.present(blockTrustAlertController, animated: true, completion: nil)
+            self.present(actionSheet, animated: true, completion: nil)
         }
-        
+    }
+
+	private func blockAll() {
+        headerView.showSpinner()
+        self.delegate?.blockAll(tableType: type, completion: { [weak self] in
+            self?.tableView.reloadData()
+            self?.headerView.hideSpinner()
+        })
 	}
 
-	private func blockAllCategories() {
-		switch type {
-		case .page:
-			let count = self.dataSource?.numberOfSections(tableType: type) ?? 0
-			for i in 0 ..< count {
-				if let x = self.dataSource?.category(type, i) {
-					self.delegate?.changeState(category: x, tableType: type, state: .blocked)
-				}
-			}
-		case .global:
-			self.delegate?.turnGlobalAntitracking(on: true)
-		}
-		self.tableView.reloadData()
-	}
+    private func unblockAll() {
+        headerView.showSpinner()
+        self.delegate?.unblockAll(tableType: type) { [weak self] in
+            self?.tableView.reloadData()
+            self?.headerView.hideSpinner()
+        }
+    }
+
+    private func undo() {
+        headerView.showSpinner()
+        self.delegate?.undoAll(tableType: type) { [weak self] in
+            self?.tableView.reloadData()
+            self?.headerView.hideSpinner()
+        }
+    }
+
+    private func restoreDefaultSettings() {
+        headerView.showSpinner()
+        self.delegate?.restoreDefaultSettings(tableType: type) { [weak self] in
+            self?.tableView.reloadData()
+            self?.headerView.hideSpinner()
+        }
+    }
 
 	private func trustAllCategories() {
-		self.delegate?.chageSiteState(to: .trusted)
-		self.tableView.reloadData()
+        headerView.showSpinner()
+        self.delegate?.changeAll(state: .trusted, tableType: type, completion: { [weak self] in
+            self?.tableView.reloadData()
+            self?.headerView.hideSpinner()
+        })
 	}
 
 	private func restrictAllCategories() {
-		self.delegate?.chageSiteState(to: .restricted)
-		self.tableView.reloadData()
+        headerView.showSpinner()
+        self.delegate?.changeAll(state: .restricted, tableType: type, completion: { [weak self] in
+            self?.tableView.reloadData()
+            self?.headerView.hideSpinner()
+        })
 	}
 
-	private func unblockAllCategories() {
-		self.delegate?.turnGlobalAntitracking(on: false)
-		self.tableView.reloadData()
-	}
-
-	@objc fileprivate func showTrackerInfo() {
-		
-	}
 }
 
 extension TrackersController: UITableViewDataSource, UITableViewDelegate {
@@ -188,7 +254,7 @@ extension TrackersController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-		if self.expandedSectionIndex == section {
+		if self.expandedSections.contains(section) {
 			return self.dataSource?.numberOfRows(tableType: type, section: section) ?? 0
 		}
         return 0
@@ -213,14 +279,37 @@ extension TrackersController: UITableViewDataSource, UITableViewDelegate {
         } else {
             cell.trackerNameLabel.text = ""
         }
+        
 		cell.selectionStyle = .none
         cell.appId = self.dataSource?.appId(tableType: type, indexPath: indexPath) ?? -1
         cell.statusIcon.image = self.dataSource?.stateIcon(tableType: type, indexPath: indexPath)
+        
+        if type == .page {
+            if dataSource?.isGhosteryPaused() == true {
+                cell.statusIcon.alpha = 0.5
+            }
+            else {
+                cell.statusIcon.alpha = 1.0
+            }
+        }
+        
+		cell.infoButtonAction = { [weak self] (button, trackerName) in
+			var url = "https://whotracks.me/tracker-not-found.html"
+			if let t = trackerName {
+				if let d = Engine.sharedInstance.getBridge().callAction("mobile-cards:getTrackerDetails", args: [t.lowercased()]) as? [String: Any],
+					let result = d["result"] as? [String: String],
+					let wtm = result["wtm"] {
+					url = "https://whotracks.me/trackers/\(wtm).html"
+				}
+			}
+			self?.observable.on(.next(url))
+		}
         return cell
-    }
+	}
 
 	func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
 		let header = CategoryHeaderView()
+        header.delegate = self
 		header.type = type
 		header.tag = section
 		header.categoryName = self.dataSource?.title(tableType: type, section: section)
@@ -228,11 +317,15 @@ extension TrackersController: UITableViewDataSource, UITableViewDelegate {
 		header.trackersCount = self.dataSource?.trackerCount(tableType: type, section: section) ?? 0
 		header.blockedTrackersCount = self.dataSource?.blockedTrackerCount(tableType: type, section: section) ?? 0
 		header.statusIcon = self.dataSource?.stateIcon(tableType: type, section: section)
-		header.isExpanded = section == expandedSectionIndex
-		
-		let headerTapGesture = UITapGestureRecognizer()
-		headerTapGesture.addTarget(self, action: #selector(sectionHeaderTapped(_:)))
-		header.addGestureRecognizer(headerTapGesture)
+		header.isExpanded = self.expandedSections.contains(section)
+        
+        if type == .page {
+            self.dataSource?.isGhosteryPaused() == true ? header.lookDeactivated() : header.lookActivated()
+        }
+        
+        let headerTapGesture = UITapGestureRecognizer()
+        headerTapGesture.addTarget(self, action: #selector(sectionHeaderTapped(_:)))
+        header.addGestureRecognizer(headerTapGesture)
 		return header
 	}
 
@@ -245,6 +338,15 @@ extension TrackersController: UITableViewDataSource, UITableViewDelegate {
 	func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
 		return 1
 	}
+    
+    private func updateSection(_ section: Int) {
+        self.tableView.performBatchUpdates({
+            let indexSet = IndexSet.init(integer: section)
+            self.tableView.reloadSections(indexSet, with: .none)
+        }) { (finished) in
+            //do nothing
+        }
+    }
 
 	func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
 		let appId = self.dataSource?.appId(tableType: type, indexPath: indexPath) ?? -1
@@ -253,49 +355,71 @@ extension TrackersController: UITableViewDataSource, UITableViewDelegate {
 			for action in actions {
 				switch action {
 				case .trust:
-					let trustAction = UIContextualAction(style: .normal, title: "Trust") { (action, view, complHandler) in
-						self.delegate?.changeState(appId: appId, state: .trusted)
-						self.tableView.beginUpdates()
-						self.tableView.reloadSections([indexPath.section], with: .none)
-						self.tableView.endUpdates()
-						complHandler(false)
+					let trustAction = UIContextualAction(style: .normal, title: NSLocalizedString("Trust", tableName: "Cliqz", comment: "[Trackers -> ControlCenter] Trust Action Title")) { [unowned self] (action, view, complHandler) in
+                        self.delegate?.changeState(appId: appId, state: .trusted, tableType: self.type, section: indexPath.section, emptyState: .none, completion: {
+                            DispatchQueue.main.async {
+                                self.updateSection(indexPath.section)
+                                complHandler(false)
+                            }
+                        })
 					}
 					trustAction.backgroundColor = UIColor.cliqzGreenLightFunctional
-					trustAction.image = UIImage(named: "trustAction")
 					swipeActions.append(trustAction)
+                case .untrust:
+                    let untrustAction = UIContextualAction(style: .normal, title: NSLocalizedString("Untrust", tableName: "Cliqz", comment: "[Trackers -> ControlCenter] Untrust Action Title")) { [unowned self] (action, view, complHandler) in
+                        self.delegate?.changeState(appId: appId, state: .empty, tableType: self.type, section: indexPath.section, emptyState: .page, completion: {
+                            DispatchQueue.main.async {
+                                self.updateSection(indexPath.section)
+                                complHandler(false)
+                            }
+                        })
+                    }
+                    untrustAction.backgroundColor = UIColor.cliqzGreenLightFunctional
+                    swipeActions.append(untrustAction)
 				case .block:
-					let blockAction = UIContextualAction(style: .destructive, title: "Block") { (action, view, complHandler) in
-						self.delegate?.changeState(appId: appId, state: .blocked)
-						self.tableView.beginUpdates()
-						self.tableView.reloadSections([indexPath.section], with: .none)
-						self.tableView.endUpdates()
-						complHandler(false)
+					let blockAction = UIContextualAction(style: .destructive, title: NSLocalizedString("Block", tableName: "Cliqz", comment: "[Trackers -> ControlCenter] Block Action Title")) { [unowned self] (action, view, complHandler) in
+                        self.delegate?.changeState(appId: appId, state: .blocked, tableType: self.type, section: indexPath.section, emptyState: .none, completion: {
+                            DispatchQueue.main.async {
+                                self.updateSection(indexPath.section)
+                                complHandler(false)
+                            }
+                        })
 					}
 					blockAction.backgroundColor = UIColor(colorString: "E74055")
-					blockAction.image = UIImage(named: "blockAction")
 					swipeActions.append(blockAction)
 				case .unblock:
-					let unblockAction = UIContextualAction(style: .destructive, title: "Unblock") { (action, view, complHandler) in
-						self.delegate?.changeState(appId: appId, state: .empty)
-						self.tableView.beginUpdates()
-						self.tableView.reloadSections([indexPath.section], with: .none)
-						self.tableView.endUpdates()
-						complHandler(false)
+					let unblockAction = UIContextualAction(style: .destructive, title: NSLocalizedString("Unblock", tableName: "Cliqz", comment: "[Trackers -> ControlCenter] Unblock Action Title")) { [unowned self] (action, view, complHandler) in
+                        self.delegate?.changeState(appId: appId, state: .empty, tableType: self.type, section: indexPath.section, emptyState: .both, completion:{
+                            DispatchQueue.main.async {
+                                self.updateSection(indexPath.section)
+                                complHandler(false)
+                            }
+                        })
 					}
-					unblockAction.backgroundColor = ControlCenterUI.textGray
-					unblockAction.image = UIImage(named: "unblockAction")
+					unblockAction.backgroundColor = UIColor(colorString: "E74055")
 					swipeActions.append(unblockAction)
 				case .restrict:
-					let restrictAction = UIContextualAction(style: .destructive, title: "Restrict") { (action, view, complHandler) in
-						self.delegate?.changeState(appId: appId, state: .restricted)
-						self.tableView.beginUpdates()
-						self.tableView.reloadSections([indexPath.section], with: .none)
-						self.tableView.endUpdates()
-						complHandler(false)
+					let restrictAction = UIContextualAction(style: .destructive, title: NSLocalizedString("Restrict", tableName: "Cliqz", comment: "[Trackers -> ControlCenter] Restrict Action Title")) { [unowned self] (action, view, complHandler) in
+                        self.delegate?.changeState(appId: appId, state: .restricted, tableType: self.type, section: indexPath.section, emptyState: .none, completion: {
+                            DispatchQueue.main.async {
+                                self.updateSection(indexPath.section)
+                                complHandler(false)
+                            }
+                        })
 					}
 					restrictAction.backgroundColor = UIColor(colorString: "BE4948")
-					restrictAction.image = UIImage(named: "restrictAction")
 					swipeActions.append(restrictAction)
+                case .unrestrict:
+                    let unrestrictAction = UIContextualAction(style: .destructive, title: NSLocalizedString("Unrestrict", tableName: "Cliqz", comment: "[Trackers -> ControlCenter] Unrestrict Action Title")) { [unowned self] (action, view, complHandler) in
+                        self.delegate?.changeState(appId: appId, state: .empty, tableType: self.type, section: indexPath.section, emptyState: .page, completion: {
+                            DispatchQueue.main.async {
+                                self.updateSection(indexPath.section)
+                                complHandler(false)
+                            }
+                        })
+                    }
+                    unrestrictAction.backgroundColor = UIColor(colorString: "BE4948")
+                    swipeActions.append(unrestrictAction)
 				}
 			}
 		}
@@ -303,29 +427,90 @@ extension TrackersController: UITableViewDataSource, UITableViewDelegate {
 	}
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        if let cell = tableView.cellForRow(at: indexPath) as? TrackerViewCell {
+            cell.showSwipeLabel()
+        }
         self.tableView.deselectRow(at: indexPath, animated: true)
+    }
+    
+    private func getIndexPaths(_ section: Int) -> [IndexPath] {
+        let numberOfRows = self.dataSource?.numberOfRows(tableType: type, section: section) ?? 0
+        var indexPaths: [IndexPath] = []
+        for i in 0..<numberOfRows {
+            let indexPath = IndexPath(row: i, section: section)
+            indexPaths.append(indexPath)
+        }
+        
+        return indexPaths
     }
 
 	@objc private func sectionHeaderTapped(_ sender: UITapGestureRecognizer) {
+        
+        func collapseSection(s: Int, bringUp: Bool = false) {
+            self.expandedSections.remove(s)
+            
+            let indexPaths: [IndexPath] = getIndexPaths(s)
+            
+            self.tableView.performBatchUpdates({
+                self.tableView.deleteRows(at: indexPaths, with: .fade)
+            }) { (finished) in
+                if finished && bringUp {
+                    self.tableView.setContentOffset(CGPoint.zero, animated: true)
+                }
+            }
+        }
+        
+        func expandSection(s: Int) {
+            self.expandedSections.insert(s)
+            
+            let indexPaths: [IndexPath] = getIndexPaths(s)
+            
+            self.tableView.performBatchUpdates({
+                self.tableView.insertRows(at: indexPaths, with: .fade)
+            })
+        }
+        
 		let headerView = sender.view
 		if let section = headerView?.tag {
-			var set = IndexSet()
-			if self.expandedSectionIndex == section {
-				self.expandedSectionIndex = -1
-				set.insert(section)
-			} else {
-				if self.expandedSectionIndex != -1 {
-					set.insert(self.expandedSectionIndex)
-				}
-				set.insert(section)
-				self.expandedSectionIndex = section
-			}
-			self.tableView.reloadSections(set, with: .fade)
-			if set.count > 1 {
-				self.tableView.scrollToRow(at: IndexPath(row: 0, section: section), at: .top, animated: false)
-			}
+            
+            // Note: This is a temporary solution to the table disappearing after a section is collapsed.
+            // The problem seems to be inside the Apple code. One possible solution is to convert this to a UICollectionView.
+            // Build indexPaths
+            
+            if self.expandedSections.contains(section) {
+                collapseSection(s: section, bringUp: true)
+            }
+            else {
+                //first close all other sections
+                for s in self.expandedSections {
+                    collapseSection(s: s)
+                }
+                
+                expandSection(s: section)
+            }
 		}
 	}
+}
+
+extension TrackersController: CategoryHeaderViewProtocol {
+    func didPressStatusIcon(section: Int) {
+        let categoryState = self.dataSource?.categoryState(type, section)
+        if let category = self.dataSource?.category(type, section) {
+            let state: TrackerUIState
+            
+            if categoryState == .blocked {
+                state = .empty
+            }
+            else {
+                state = .blocked
+            }
+            
+            self.delegate?.changeState(category: category, state: state, tableType: type, completion: {
+                self.updateSection(section)
+            })
+            
+        }
+    }
 }
 
 class TrackerViewCell: UITableViewCell {
@@ -334,15 +519,24 @@ class TrackerViewCell: UITableViewCell {
 	let infoButton = UIButton(type: .custom)
 	let trackerNameLabel = UILabel()
 	let statusIcon = UIImageView()
+    private let swipeLabel = UILabel()
+
+	typealias InfoButtonActionType = (UIButton, String?) -> ()
 
     override init(style: UITableViewCellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
 		self.contentView.addSubview(infoButton)
 		self.contentView.addSubview(trackerNameLabel)
 		self.contentView.addSubview(statusIcon)
+        self.contentView.addSubview(swipeLabel)
 		infoButton.setImage(UIImage(named: "info"), for: .normal)
 		trackerNameLabel.font = UIFont.systemFont(ofSize: 16)
 		trackerNameLabel.textColor = ControlCenterUI.textGray
+        
+        swipeLabel.font = UIFont.systemFont(ofSize: 16)
+        swipeLabel.textColor = UIColor.cliqzBluePrimary
+        swipeLabel.text = NSLocalizedString("Swipe", tableName: "Cliqz", comment: "[Trackers -> ControlCenter] Swipe Cell Title")
+        swipeLabel.alpha = 0.0
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -365,7 +559,52 @@ class TrackerViewCell: UITableViewCell {
 			make.centerY.equalToSuperview()
 			make.width.height.equalTo(20)
 		}
+        swipeLabel.snp.remakeConstraints { (make) in
+            make.centerY.equalToSuperview()
+            make.right.equalToSuperview().offset(-10)
+        }
 	}
+    
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        self.trackerNameLabel.attributedText = nil
+        self.trackerNameLabel.text = ""
+        self.statusIcon.image = nil
+        self.appId = 0
+    }
+    
+    func showSwipeLabel() {
+        self.statusIcon.alpha = 0.0
+        UIView.animate(withDuration: 0.2, animations: { [weak self] in
+            self?.swipeLabel.alpha = 1.0
+        }) { (finished) in
+            if finished {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: { [weak self] in
+                    UIView.animate(withDuration: 0.2, animations: {
+                        self?.swipeLabel.alpha = 0.0
+                        self?.statusIcon.alpha = 1.0
+                    })
+                })
+            }
+        }
+    }
+
+	var infoButtonAction: InfoButtonActionType? {
+		didSet {
+			if infoButtonAction != nil {
+				infoButton.addTarget(self, action: #selector(infoButtonTapped(_:)), for: .touchUpInside)
+			} else {
+				infoButton.removeTarget(self, action: #selector(infoButtonTapped(_:)), for: .touchUpInside)
+			}
+		}
+	}
+	
+	@objc private func infoButtonTapped(_ sender: UIButton) {
+		if let handler = infoButtonAction {
+			handler(self.infoButton, trackerNameLabel.text)
+		}
+	}
+
 }
 
 class CategoriesHeaderView: UIControl {
@@ -373,6 +612,7 @@ class CategoriesHeaderView: UIControl {
 	let categoriesLabel = UILabel()
 	let actionButton = UIButton(type: .custom)
 	let separator = UIView()
+    let spinner = UIActivityIndicatorView(activityIndicatorStyle: UIActivityIndicatorViewStyle.gray)
 
 	init() {
 		super.init(frame: CGRect.zero)
@@ -381,6 +621,8 @@ class CategoriesHeaderView: UIControl {
 		self.addSubview(actionButton)
 		actionButton.setImage(UIImage(named: "more"), for: .normal)
 		self.addSubview(separator)
+        self.addSubview(spinner)
+        spinner.alpha = 0.0
 		setStyles()
 	}
 
@@ -397,25 +639,48 @@ class CategoriesHeaderView: UIControl {
 	override func layoutSubviews() {
 		super.layoutSubviews()
 		self.categoriesLabel.snp.remakeConstraints { (make) in
-			make.top.equalToSuperview()
-			make.bottom.equalToSuperview()
 			make.left.equalTo(self).offset(12)
-			make.right.equalTo(actionButton.snp.left).offset(12)
+            make.centerY.equalToSuperview()
 		}
 		self.actionButton.snp.remakeConstraints { (make) in
-			make.left.equalTo(categoriesLabel.snp.right).offset(10)
-			make.top.bottom.equalToSuperview()
-			make.right.equalToSuperview().inset(15)
+			make.right.equalToSuperview()
+            make.centerY.equalToSuperview()
+            make.size.equalTo(50)
 		}
 		self.separator.snp.remakeConstraints { (make) in
 			make.left.right.bottom.equalToSuperview()
 			make.height.equalTo(1)
 		}
+        self.spinner.snp.makeConstraints { (make) in
+            make.center.equalTo(actionButton.snp.center)
+        }
 	}
 
 	override func addTarget(_ target: Any?, action: Selector, for controlEvents: UIControlEvents) {
 		self.actionButton.addTarget(target, action: action, for: controlEvents)
 	}
+    
+    func showSpinner() {
+        UIView.animate(withDuration: 0.2) { [unowned self] in
+            self.actionButton.alpha = 0.0
+            self.spinner.alpha = 1.0
+            self.spinner.startAnimating()
+            self.setNeedsDisplay()
+        }
+    }
+    
+    func hideSpinner() {
+        UIView.animate(withDuration: 0.2) { [unowned self] in
+            self.spinner.alpha = 0.0
+            self.actionButton.alpha = 1.0
+            self.spinner.stopAnimating()
+            self.setNeedsDisplay()
+        }
+    }
+}
+
+protocol CategoryHeaderViewProtocol: class {
+    func didPressStatusIcon(section: Int)
 }
 
 class CategoryHeaderView: UIView {
@@ -426,6 +691,11 @@ class CategoryHeaderView: UIView {
 	private let typeLabel = UILabel()
 	private let statusView = UIImageView()
 	private let expandedIcon = UIImageView()
+    private let statusButton = UIButton()
+    
+    weak var delegate: CategoryHeaderViewProtocol? = nil
+    
+    let specialGray = UIColor(colorString: "97a4ae")
 
 	var isExpanded = false {
 		didSet {
@@ -486,7 +756,10 @@ class CategoryHeaderView: UIView {
 		self.addSubview(statusView)
 		self.addSubview(typeLabel)
 		self.addSubview(expandedIcon)
+        self.addSubview(statusButton)
 		self.setStyles()
+        
+        statusButton.addTarget(self, action: #selector(statusViewPressed), for: .touchUpInside)
 	}
 
 	required init?(coder aDecoder: NSCoder) {
@@ -524,18 +797,44 @@ class CategoryHeaderView: UIView {
 			make.centerY.equalToSuperview().offset(-7)
 			make.centerX.equalTo(expandedIcon)
 		}
+        
+        statusButton.snp.makeConstraints { (make) in
+            make.center.equalTo(statusView.snp.center)
+            make.size.equalTo(60)
+        }
 	}
 
 	func setStyles() {
 		self.backgroundColor = UIColor.white
 		categoryLabel.font = UIFont.systemFont(ofSize: 16)
 		statisticsLabel.font = UIFont.systemFont(ofSize: 12)
-		statisticsLabel.textColor = ControlCenterUI.separatorGray
-		typeLabel.textColor = UIColor.black
+		statisticsLabel.textColor = specialGray
+		typeLabel.textColor = specialGray
 		typeLabel.font = UIFont.systemFont(ofSize: 10)
 	}
+    
+    func lookDeactivated() {
+        let color = UIColor.lightGray
+        statisticsLabel.textColor = color
+        typeLabel.textColor = color
+        categoryLabel.textColor = color
+        iconView.alpha = 0.5
+        statusView.alpha = 0.5
+    }
+    
+    func lookActivated() {
+        statisticsLabel.textColor = specialGray
+        typeLabel.textColor = specialGray
+        categoryLabel.textColor = UIColor.black
+        iconView.alpha = 1.0
+        statusView.alpha = 1.0
+    }
+    
+    @objc func statusViewPressed(_ sender: Any) {
+        delegate?.didPressStatusIcon(section: self.tag)
+    }
 
 	private func updateStatistics() {
-		statisticsLabel.text = String(format: NSLocalizedString("%d TRACKERS %d Blocked", tableName: "Cliqz", comment: "[ControlCenter -> Trackers] Detected and Blocked trackers count"), self.trackersCount, self.blockedTrackersCount)
+		statisticsLabel.text = String(format: NSLocalizedString("%d Tracker(s) %d Blocked", tableName: "Cliqz", comment: "[ControlCenter -> Trackers] Detected and Blocked trackers count"), self.trackersCount, self.blockedTrackersCount)
 	}
 }

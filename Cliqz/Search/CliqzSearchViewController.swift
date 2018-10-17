@@ -13,12 +13,14 @@ import Storage
 
 class HistoryListener {
     var historyResults: Cursor<Site>?
+    weak var firefoxSearchController: FirefoxSearchViewController? = nil
     static let shared = HistoryListener()
 }
 
 extension HistoryListener: LoaderListener {
     public func loader(dataLoaded data: Cursor<Site>) {
         self.historyResults = data
+        firefoxSearchController?.loader(dataLoaded: data)
     }
 }
 
@@ -37,9 +39,53 @@ let ShareLocationSearchNotification = NSNotification.Name(rawValue: "mobile-sear
 
 let SearchEngineChangedNotification = Notification.Name(rawValue: "SearchEngineChangedNotification")
 
+class BackgroundImageManager {
+    
+    static let shared = BackgroundImageManager()
+    
+    private var orientationForImage: DeviceOrientation? = nil
+    private var orientationForBlurredImage: DeviceOrientation? = nil
+    
+    private var image: UIImage? = nil
+    private var blurredImage: UIImage? = nil
+    
+    func getImage() -> UIImage? {
+        
+        let (_, orientation) = UIDevice.current.getDeviceAndOrientation()
+        
+        if let img = image, orientation == orientationForImage {
+            return img
+        }
+        
+        orientationForImage = orientation
+        image = UIImage.cliqzBackgroundImage()
+        return image
+    }
+    
+    func getBlurredImage() -> UIImage? {
+        
+        let (_, orientation) = UIDevice.current.getDeviceAndOrientation()
+        
+        if let img = blurredImage, orientation == orientationForBlurredImage {
+            return img
+        }
+        
+        orientationForBlurredImage = orientation
+        blurredImage = UIImage.cliqzBackgroundImage(blurred: true)
+        return blurredImage
+    }
+    
+    func reset() {
+        image = nil
+        blurredImage = nil
+    }
+}
+
 class CliqzSearchViewController : UIViewController, KeyboardHelperDelegate, UIAlertViewDelegate  {
     
     let searchView = Engine.sharedInstance.rootView
+    fileprivate let backgroundImage = UIImageView()
+    fileprivate let privateModeOverlay = UIView.overlay(frame: CGRect.zero)
 
     private static let KVOLoading = "loading"
     
@@ -51,8 +97,11 @@ class CliqzSearchViewController : UIViewController, KeyboardHelperDelegate, UIAl
     var lastSearchQuery: String? = nil
     
     var searchQuery: String? = nil {
-        willSet {
-            lastSearchQuery = searchQuery
+		willSet {
+			lastSearchQuery = searchQuery
+		}
+        didSet {
+			Engine.sharedInstance.sendUrlBarInputEvent(newString: searchQuery, lastString: self.lastSearchQuery)
         }
     }
     
@@ -86,15 +135,23 @@ class CliqzSearchViewController : UIViewController, KeyboardHelperDelegate, UIAl
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
-
+        
+        self.view.backgroundColor = .clear
+        self.searchView.backgroundColor = .clear
+        self.view.addSubview(backgroundImage)
+        self.backgroundImage.snp.makeConstraints { (make) in
+            make.edges.equalToSuperview()
+        }
         self.view.addSubview(searchView)
         self.searchView.snp.makeConstraints { (make) in
-            make.left.right.top.bottom.equalToSuperview()
+            make.edges.equalToSuperview()
         }
 
 		KeyboardHelper.defaultHelper.addDelegate(self)
+        backgroundImage.image = BackgroundImageManager.shared.getImage()
         
         NotificationCenter.default.addObserver(self, selector: #selector(showOpenSettingsAlert(_:)), name: NSNotification.Name(rawValue: LocationManager.NotificationShowOpenLocationSettingsAlert), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(orientationDidChange), name: Notification.Name.DeviceOrientationChanged, object: nil)
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -126,6 +183,12 @@ class CliqzSearchViewController : UIViewController, KeyboardHelperDelegate, UIAl
         if privateMode != self.privateMode {
             self.privateMode = privateMode
 			self.updateExtensionPreferences()
+            if privateMode && privateModeOverlay.superview == nil {
+                backgroundImage.addSubview(privateModeOverlay)
+                privateModeOverlay.snp.makeConstraints { (make) in
+                    make.edges.equalToSuperview()
+                }
+            }
         }
     }
 
@@ -176,8 +239,12 @@ class CliqzSearchViewController : UIViewController, KeyboardHelperDelegate, UIAl
     }
     
     //MARK: - Search Engine
-    func searchEngineChanged(_ notification: Notification) {
+    @objc func searchEngineChanged(_ notification: Notification) {
         self.updateExtensionSearchEngine()
+    }
+    
+    @objc func orientationDidChange(_ notification: Notification) {
+        backgroundImage.image = BackgroundImageManager.shared.getImage()
     }
 }
 
@@ -252,7 +319,7 @@ extension CliqzSearchViewController {
 
 //MARK: - Util
 extension CliqzSearchViewController {
-    func showOpenSettingsAlert(_ notification: Notification) {
+    @objc func showOpenSettingsAlert(_ notification: Notification) {
         var message: String!
         var settingsAction: UIAlertAction!
         
@@ -268,7 +335,7 @@ extension CliqzSearchViewController {
         } else {
             message = NSLocalizedString("To share your location, go to the settings of your smartphone:\n1.Turn on Location Services\n2.Select the CLIQZ App\n3.Enable 'While Using'", tableName: "Cliqz", comment: "Alert message for turning on location service when clicking share location on local card")
             settingsAction = UIAlertAction(title: settingsOptionTitle, style: .default) { (_) -> Void in
-                if let settingsUrl = URL(string: "App-Prefs:root=Privacy&path=LOCATION") {
+                if let settingsUrl = URL(string: UIApplicationOpenSettingsURLString) {
                     UIApplication.shared.open(settingsUrl, options: [:], completionHandler: nil)
                 }
             }

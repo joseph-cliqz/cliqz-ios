@@ -13,9 +13,13 @@ import Storage
 typealias BlockListIdentifier = String
 typealias JSONIdentifier = String
 
-enum BlockListType {
+enum BlockListType: Comparable {
     case antitracking
     case adblocker
+    
+    static func < (lhs: BlockListType, rhs: BlockListType) -> Bool {
+        return lhs == .antitracking && rhs == .adblocker
+    }
 }
 
 final class GlobalPrivacyQueue {
@@ -45,7 +49,20 @@ final class BlockingCoordinator {
     
     private unowned let webView: WKWebView
     
-    class func isAdblockerOn() -> Bool {
+    class func isAdblockerOn(domain: String?) -> Bool {
+        
+        if let domain = domain {
+            if let domain = DomainStore.get(domain: domain) {
+                let state = domain.translatedAdblockerState()
+                if state == .on {
+                    return true
+                }
+                else if state == .off {
+                    return false
+                }
+            }
+        }
+        
         return UserPreferences.instance.adblockingMode == .blockAll
     }
     
@@ -54,10 +71,7 @@ final class BlockingCoordinator {
         if UserPreferences.instance.pauseGhosteryMode == .paused {
             return false
         }
-        
-        if let domainStr = domain, let domainObj = DomainStore.get(domain: domainStr) {
-            return !(domainObj.translatedState == .trusted)
-        }
+
         return true
     }
     
@@ -65,7 +79,7 @@ final class BlockingCoordinator {
     static let order: [BlockListType] = [.antitracking, .adblocker]
     
     class func featureIsOn(forType: BlockListType, domain: String?) -> Bool {
-        return forType == .antitracking ? isAntitrackingOn(domain: domain) : isAdblockerOn()
+        return forType == .antitracking ? isAntitrackingOn(domain: domain) : isAdblockerOn(domain: domain)
     }
     
     class func blockIdentifiers(forType: BlockListType, domain: String?, webView: WKWebView?) -> ([BlockListIdentifier], [String: Bool]?) {

@@ -38,10 +38,10 @@ class CliqzTopTabCell: TopTabCell {
     
     override var selectedTab: Bool {
         didSet {
-            backgroundColor = selectedTab ? UIColor.cliqzURLBarColor : UIColor(colorString: "275574")
-            titleText.textColor = selectedTab ? UIColor.white : UIColor.Defaults.Grey40
+            backgroundColor = selectedTab ? UIColor.cliqzBluePrimary : UIColor(colorString: "275574")
+            titleText.textColor = selectedTab ? UIColor.white : UIColor.Photon.Grey40
             highlightLine.isHidden = !selectedTab
-            closeButton.tintColor = selectedTab ? UIColor.white : UIColor.Defaults.Grey40
+            closeButton.tintColor = selectedTab ? UIColor.white : UIColor.Photon.Grey40
             closeButton.backgroundColor = backgroundColor
             closeButton.layer.shadowColor = backgroundColor?.cgColor
             highlightLine.isHidden = true
@@ -59,6 +59,5 @@ class CliqzTopTabsViewController: TopTabsViewController {
         }
         
         privateModeButton.isHidden = true
-        view.backgroundColor = UIColor.cliqzURLBarColor
     }
 }

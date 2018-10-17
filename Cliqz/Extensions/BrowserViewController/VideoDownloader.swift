@@ -17,6 +17,10 @@ extension BrowserViewController {
     }
     
     func downloadVideoFromURL(_ url: String, sourceRect: CGRect) {
+        if SettingsPrefs.shared.getLimitMobileDataUsagePref() && DeviceInfo.hasWwanConnectivity() {
+            self.showNoWifiConnectionAlert()
+            return
+        }
         
         let hudMessage = NSLocalizedString("Retrieving video information", tableName: "Cliqz", comment: "[VidoeDownloader] HUD message displayed while youtube downloader grabing the download URLs of the video")
         FeedbackUI.showLoadingHUD(hudMessage)
@@ -64,7 +68,7 @@ extension BrowserViewController {
         let labelText = NSLocalizedString("Your video is being downloaded.", tableName: "Cliqz", comment: "[VidoeDownloader] Toast message shown when youtube video download started")
         DispatchQueue.main.async { [weak self] in
             let toast = ButtonToast(labelText: labelText, buttonText: Strings.OKString) { (_) in }
-            self?.show(buttonToast: toast)
+            self?.show(toast: toast)
         }
         
         DownloadManager.downloadVideo(url) { [weak self] (error) in
@@ -76,14 +80,28 @@ extension BrowserViewController {
         }
     }
     
+    private func showNoWifiConnectionAlert() {
+        let title = NSLocalizedString("Could not download Video.", tableName: "Cliqz", comment: "[VidoeDownloader] Alert title for youtube video download faild")
+        let message = NSLocalizedString("No Wi-Fi Connection message", tableName: "Cliqz", comment: "[Connect] No Wi-Fi connection alert message")
+        
+        let settingsAction = UIAlertAction(title: NSLocalizedString("Settings", tableName: "Cliqz", comment: "Settings"), style: .default) { (_) in
+            self.openSettings()
+        }
+        
+        let dismissAction = UIAlertAction(title: NSLocalizedString("Dismiss", tableName: "Cliqz", comment: "Dismiss No Wi-Fi connection alert"), style: .cancel) { (_) in }
+        
+        let alertController = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alertController.addAction(settingsAction)
+        alertController.addAction(dismissAction)
+        
+        self.present(alertController, animated: true, completion: nil)
+    }
+    
     private func showDownloadErrorMessage(_ error: DownloadError) {
         //TODO: Add messages for each error type
-        var labelText = NSLocalizedString("Could not download Video.", tableName: "Cliqz", comment: "[VidoeDownloader] Toast message shown when youtube video download faild")
-        if error == .mobileDataUsageLimited {
-            labelText = NSLocalizedString("No Wi-Fi Connection message", tableName: "Cliqz", comment: "[VidoeDownloader] No Wi-Fi connection alert message")
-        }
+        let labelText = NSLocalizedString("Could not download Video.", tableName: "Cliqz", comment: "[VidoeDownloader] Toast message shown when youtube video download faild")
         let toast = ButtonToast(labelText: labelText, buttonText: Strings.OKString) { (_) in }
-        self.show(buttonToast: toast)
+        self.show(toast: toast)
     }
     
     private func showDownloadSuccessMessage() {
@@ -95,7 +113,7 @@ extension BrowserViewController {
                     UIApplication.shared.open(photosAppUrl, options: [:])
                 }
             }
-            self?.show(buttonToast: toast)
+            self?.show(toast: toast)
         }
     }
 }

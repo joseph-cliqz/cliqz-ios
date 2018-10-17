@@ -27,11 +27,13 @@ class NewsCellViewModel {
 			url = ""
 		}
 		let fullTitle = NSMutableAttributedString()
+        let customAttributes = NewsCellViewModel.getCustomLabelAttributes()
+        
 		if news.isBreaking ?? false,
 			let t = news.breakingLabel {
-			fullTitle.append(NSAttributedString(string: t.uppercased() + ": ", attributes: [NSForegroundColorAttributeName: UIColor(rgb: 0xE64C66)]))
+			fullTitle.append(NSAttributedString(string: t.uppercased() + ": ", attributes: customAttributes))
 		} else if let locallbl = news.localLabel {
-			fullTitle.append(NSAttributedString(string: locallbl.uppercased() + ": ", attributes: [NSForegroundColorAttributeName: UIColor.cliqzBluePrimary]))
+			fullTitle.append(NSAttributedString(string: locallbl.uppercased() + ": ", attributes: customAttributes))
 		}
 		if let shortTitle = news.shortTitle {
 			fullTitle.append(NSAttributedString(string: shortTitle))
@@ -42,6 +44,14 @@ class NewsCellViewModel {
 		logo = Variable(nil)
 		logoInfo = Variable(nil)
 	}
+    
+    private class func getCustomLabelAttributes() -> [NSAttributedStringKey : Any] {
+        
+        let customAttributes = [NSAttributedStringKey.foregroundColor: UIColor.cliqzBluePrimary,
+                                NSAttributedStringKey.font: UIFont.boldSystemFont(ofSize: 16)]
+        
+        return customAttributes
+    }
 }
 
 class NewsViewCell: ClickableUITableViewCell {
@@ -69,6 +79,20 @@ class NewsViewCell: ClickableUITableViewCell {
 			}, onError: { (_) in
 				self.logoImageView.image = nil
 			}, onCompleted: nil, onDisposed: nil).disposed(by: disposeBag)
+            
+            viewModel?.logoInfo.asObservable().subscribe(onNext: { (logoInfo) in
+                if let info = logoInfo {
+                    let placeholder = LogoPlaceholder(logoInfo: info)
+                    self.fakeLogoView = placeholder
+                    self.logoContainerView.addSubview(placeholder)
+                    placeholder.snp.makeConstraints({ (make) in
+                        make.top.left.right.bottom.equalTo(self.logoContainerView)
+                    })
+                }
+            }, onError: { (_) in
+                self.fakeLogoView = nil
+                self.fakeLogoView?.removeFromSuperview()
+            }, onCompleted: nil, onDisposed: nil).disposed(by: disposeBag)
 		}
 	}
 
@@ -83,18 +107,18 @@ class NewsViewCell: ClickableUITableViewCell {
     
 	override init(style: UITableViewCellStyle, reuseIdentifier: String?) {
 		super.init(style: style, reuseIdentifier: reuseIdentifier)
-		self.contentView.backgroundColor = UIColor.white.withAlphaComponent(0.6)
-		self.backgroundColor = UIColor.white.withAlphaComponent(0.6)
+		self.contentView.backgroundColor = UIColor.black.withAlphaComponent(0.40)
+		self.backgroundColor = UIColor.clear
 		cardView.backgroundColor = UIColor.clear
 		cardView.layer.cornerRadius = 4
 		contentView.addSubview(cardView)
 		cardView.addSubview(titleLabel)
-		titleLabel.font = UIFont.systemFont(ofSize: 15, weight: UIFontWeightMedium)
+		titleLabel.font = UIFont.systemFont(ofSize: 15, weight: UIFont.Weight.medium)
 		titleLabel.textColor = self.textColor()
 		titleLabel.backgroundColor = UIColor.clear
 		cardView.addSubview(URLLabel)
-		URLLabel.font = UIFont.systemFont(ofSize: 12, weight: UIFontWeightMedium)
-		URLLabel.textColor = UIColor.darkGray
+		URLLabel.font = UIFont.systemFont(ofSize: 12, weight: UIFont.Weight.medium)
+		URLLabel.textColor = UIColor.white
 		URLLabel.backgroundColor = UIColor.clear
 		titleLabel.numberOfLines = 2
 		self.cardView.addSubview(self.logoContainerView)
@@ -168,7 +192,7 @@ class NewsViewCell: ClickableUITableViewCell {
 	}
 
 	fileprivate func textColor() -> UIColor {
-		return UIColor.black
+		return UIColor.white
 		// TODO: fix
 //		return UIConstants.NormalModeTextColor
 	}

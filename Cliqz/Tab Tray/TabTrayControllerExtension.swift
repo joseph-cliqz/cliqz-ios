@@ -10,20 +10,52 @@ import UIKit
 
 extension TabTrayController {
 
-    func didTapDone() {
+    @objc func didTapDone() {
         _ = self.navigationController?.popViewController(animated: true)
     }
     
-    func SELlongPressDoneButton(_ recognizer: UILongPressGestureRecognizer) {
+    @objc func SELlongPressDoneButton(_ recognizer: UILongPressGestureRecognizer) {
         if recognizer.state == .began {
             self.didTapDelete(self.toolbar.doneButton)
         }
     }
     
-    func setBackgroundImage() {
-        collectionView.backgroundView = UIImageView(image: UIImage.cliqzBackgroundImage(blurred: true))
+    func setUpOverlay() {
+        if privateMode && privateModeOverlay == nil{
+            privateModeOverlay = UIView.overlay(frame: CGRect.zero)
+            backgroundView.addSubview(privateModeOverlay!)
+            backgroundView.bringSubview(toFront: privateModeOverlay!)
+            privateModeOverlay?.snp.makeConstraints({ (make) in
+                make.edges.equalToSuperview()
+            })
+        }
+        else if !privateMode {
+            privateModeOverlay?.removeFromSuperview()
+            privateModeOverlay = nil
+        }
     }
     
+    func setBackgroundImage() {
+        collectionView.backgroundColor = UIColor.clear
+        
+        if backgroundView.superview == nil {
+            self.view.addSubview(backgroundView)
+            self.view.sendSubview(toBack: backgroundView)
+        }
+        
+        if backgroundView.constraints.isEmpty {
+            backgroundView.snp.makeConstraints { (make) in
+                make.edges.equalToSuperview()
+            }
+        }
+        
+        self.backgroundView.image = UIImage.cliqzBackgroundImage()
+        setUpOverlay()
+    }
+    
+    func updateBackgroundColor() {
+        UIApplication.shared.windows.first?.backgroundColor = privateMode ? UIColor.cliqzForgetPrimary : UIColor.cliqzBluePrimary
+    }
     @objc func orientationDidChange(_ notification: Notification) {
         setBackgroundImage()
     }

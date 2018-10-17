@@ -35,6 +35,12 @@ public protocol BrowserHistory {
     func removeFromPinnedTopSites(_ site: Site) -> Success
     func addPinnedTopSite(_ site: Site) -> Success
     func getPinnedTopSites() -> Deferred<Maybe<Cursor<Site>>>
+    func isPinnedTopSite(_ url: String) -> Deferred<Maybe<Bool>>
+    
+    // Cliqz: added to get hidden topsites count
+    func getHiddenTopSitesCount() -> Int
+    // Cliqz: reset all hided TopSite
+    func resetHiddenTopSites()
 }
 
 /**

@@ -21,7 +21,7 @@ struct News {
 
 class NewsDataService {
 
-	private static let APIURL = "https://api.cliqz.com/api/v2/rich-header?path=/v2/map&q=&lang=N/A&locale=\(Locale.current.identifier)&adult=0&loc_pref=ask&platform=1&sub_platform=11&country=DE"
+	private static let APIURL = "https://api.ghostery.net/api/v2/rich-header?path=/v2/map&q=&lang=N/A&locale=\(Locale.current.identifier)&adult=0&loc_pref=ask&platform=1&sub_platform=11&country=DE"
 
 	static func loadLastNews(completionHandler: @escaping ([News], Error?) -> Void) {
 		NewsDataService.loadData(successHandler: { news in
@@ -48,7 +48,7 @@ class NewsDataService {
 			if response.result.isSuccess {
 				if let data = response.result.value as? [String: Any],
 					let result = data["results"] as? [[String: Any]] {
-					if let snippet = result[0]["snippet"] as? [String: Any],
+					if let snippet = result.first?["snippet"] as? [String: Any],
 						let extra = snippet["extra"] as? [String: Any],
 						let articles = extra["articles"] as? [[String: Any]] {
 						successHandler(NewsDataService.parseNews(articles))

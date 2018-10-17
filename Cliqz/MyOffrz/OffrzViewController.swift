@@ -16,7 +16,7 @@ class OffrzViewController: UIViewController, HomePanel {
     private var scrollView = UIScrollView()
     private var containerView = UIView()
 
-	private static let learnMoreURL = "https://cliqz.com/myoffrz"
+	private static let learnMoreURL = "https://www.ghostery.com/faqs/what-is-ghostery-rewards/"
 	private var onboardingView: OffrzOnboardingView!
 
 	private var emptyView: OffrzEmptyView!
@@ -44,8 +44,11 @@ class OffrzViewController: UIViewController, HomePanel {
 		super.viewDidLoad()
         setStyles()
         setupComponents()
-        self.loadOffrz()
 	}
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        self.loadOffrz()
+    }
     
 	override func viewDidAppear(_ animated: Bool) {
 		super.viewDidAppear(animated)
@@ -101,12 +104,12 @@ class OffrzViewController: UIViewController, HomePanel {
     }
     
     private func setupOnboardingView() {
-        guard self.onboardingView == nil else {
-            return
-        }
-        if offrzDataSource.hasOffrz() && offrzDataSource.shouldShowOnBoarding() {
+        self.onboardingView?.removeFromSuperview()
+        self.onboardingView = nil
+        
+        if offrzDataSource.hasOffrz() && offrzDataSource.shouldShowOnBoarding(){
 			self.onboardingView = OffrzOnboardingView()
-            self.onboardingView.backgroundColor = UIColor.white.withAlphaComponent(0.5)
+            self.onboardingView.backgroundColor = UIColor.black.withAlphaComponent(0.5)
 			containerView.addSubview(onboardingView)
 			onboardingView.addActionHandler(.hide) { [unowned self] in
 				self.hideOnboardingView()
@@ -148,7 +151,7 @@ class OffrzViewController: UIViewController, HomePanel {
             if isOnboardingOn && offrzDataSource.shouldShowOnBoarding() {
                 self.onboardingView.snp.remakeConstraints({ (make) in
                     make.top.left.right.equalTo(containerView)
-                    make.height.equalTo(175)
+                    make.height.equalTo(115)
                 })
             }
             if let offrView = self.offrView {

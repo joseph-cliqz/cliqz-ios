@@ -9,19 +9,18 @@
 import UIKit
 
 extension ShareExtensionHelper {
-    static let cliqzdownloadURL = URL(string:"https://cliqz.com/download")
     
     func getApplicationActivities() -> [UIActivity] {
-        let applicationActivities = [SettingsActivity(), WiFiProtectionActivity()]
+        let applicationActivities = [WiFiProtectionActivity()]
         return applicationActivities
     }
     
-    func createCliqzTabActivityController(_ completionHandler: @escaping (_ completed: Bool, _ activityType: String?) -> Void) -> UIActivityViewController {
+    func createStartTabActivityController(_ completionHandler: @escaping (_ completed: Bool, _ activityType: String?) -> Void) -> UIActivityViewController {
         var activityItems = [AnyObject]()
-        let title = NSLocalizedString("Hey, I would like to invite you to try the Cliqz Browser.", tableName: "Cliqz", comment: "Sharing FreshTab message")
-        activityItems.append(TitleActivityItemProvider(title: title))
+        let shareStartTabtitle = String(format: NSLocalizedString("Hey, I would like to invite you to try the %@ Browser.", tableName: "Cliqz", comment: "Sharing StartTab message"), UserAgentConstants.appName)
+        activityItems.append(TitleActivityItemProvider(title: shareStartTabtitle))
         
-        if let cliqzdownloadURL = ShareExtensionHelper.cliqzdownloadURL {
+        if let cliqzdownloadURL = UserAgentConstants.storeURL {
             activityItems.append(cliqzdownloadURL as AnyObject)
         }
         
@@ -49,6 +48,18 @@ extension ShareExtensionHelper {
             completionHandler(completed, activityType.map { $0.rawValue })
         }
         return activityViewController
+    }
+    
+    func generateFooterText() -> String {
+        let shareText = String(format: NSLocalizedString("Shared with %@ Browser for iOS", tableName: "Cliqz", comment: "Shared with [Cliqz Browser | Ghostery Browser] for iOS"), UserAgentConstants.appName)
+        var footerText = "\n--\n\(shareText)"
+        
+        if let url = UserAgentConstants.storeURL {
+            let downloadText = String(format: NSLocalizedString("Get it from %@", tableName: "Cliqz", comment: "Get it from the %link%"), url.absoluteString)
+            footerText.append("\n\(downloadText)")
+        }
+        
+        return footerText
     }
 
 }

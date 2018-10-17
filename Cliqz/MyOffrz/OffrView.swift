@@ -104,8 +104,9 @@ class OffrView: UIView {
 		conditionsDesc.font = UIFont.boldSystemFont(ofSize: 10)
 		conditionsDesc.numberOfLines = 0
 
-		myOffrzLogo.image = UIImage(named: "offrzLogo")
-		offrButton.backgroundColor = UIColor(rgb: 0xF67057)
+        // removed myOffrz logo
+		// myOffrzLogo.image = UIImage(named: "offrzLogo")
+		offrButton.backgroundColor = UIColor(rgb: 0x920094)
 		offrButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 22)
 	}
 
@@ -175,6 +176,9 @@ class OffrView: UIView {
 			make.left.right.equalTo(self)
 			make.height.equalTo(61)
 		}
+        
+        promoCodeLabel.isHidden = offr.code == nil
+        promoCodeButton.isHidden = offr.code == nil
     }
 
 	@objc

@@ -20,11 +20,34 @@ extension URLBarDelegate {
 
 }
 
+extension URLBarView {
+    func updateCurrentQuery(_ autocompleteTextField: AutocompleteTextField, _ text: String) {
+        if let view = autocompleteTextField.inputAccessoryView as? KeyboardAccessoryView {
+            view.updateCurrentQuery(text)
+        }
+    }
+}
+
 class CliqzURLBar: URLBarView {
 
     struct UXOverrides {
         static let TextFieldBorderWidthSelected: CGFloat = 2.0
         static let LineHeight: CGFloat = 0.0
+    }
+    
+    override var currentURL: URL? {
+        get {
+            return locationView.url as URL?
+        }
+        
+        set(newURL) {
+            locationView.url = newURL
+            line.isHidden = newURL?.isAboutHomeURL ?? true
+            if newURL != nil {
+                pageOptionsButton.alpha = 0
+            }
+            
+        }
     }
     
     let ghostyHeight = 54.0
@@ -33,11 +56,11 @@ class CliqzURLBar: URLBarView {
     private lazy var _cancelButton: UIButton = {
         let cancelButton = InsetButton()
         //cancelButton.setImage(UIImage.templateImageNamed("goBack"), for: .normal)
-        cancelButton.setTitle("Cancel", for: .normal)
+        cancelButton.setTitle(NSLocalizedString("Cancel", tableName: "Cliqz", comment: "Cancel button title in the urlbar"), for: .normal)
         cancelButton.setTitleColor(.white, for: .normal)
         cancelButton.setTitleColor(UIColor.cliqzBlueTwoSecondary, for: UIControlState.highlighted)
         cancelButton.accessibilityIdentifier = "urlBar-cancel"
-        cancelButton.addTarget(self, action: #selector(SELdidClickCancel), for: .touchUpInside)
+        cancelButton.addTarget(self, action: #selector(didClickCancel), for: .touchUpInside)
         cancelButton.alpha = 0
         return cancelButton
     }()
@@ -48,17 +71,31 @@ class CliqzURLBar: URLBarView {
     }
     
     lazy var ghosteryButton: GhosteryButton = {
-        let button = GhosteryButton(dataSource: self)
-        //button.setImage(UIImage.init(named: "ghosty"), for: .normal)
+        let button = GhosteryButton()
         button.accessibilityIdentifier = "ghosty"
-        button.addTarget(self, action: #selector(SELdidClickGhosty), for: .touchUpInside)
+        button.addTarget(self, action: #selector(SELdidClickGhosty), for: .touchDown)
         button.alpha = 1
         return button
+    }()
+    
+    lazy var pageOptionsButton: UIButton = {
+        let pageOptionsButton = UIButton(frame: .zero)
+        pageOptionsButton.setImage(UIImage.templateImageNamed("menu-More-Options"), for: .normal)
+        pageOptionsButton.addTarget(self, action: #selector(SELDidPressPageOptionsButton), for: .touchUpInside)
+        pageOptionsButton.isAccessibilityElement = true
+        pageOptionsButton.imageView?.contentMode = .left
+        pageOptionsButton.accessibilityIdentifier = "UrlBar.pageOptionsButton"
+        return pageOptionsButton
     }()
     
     @objc func SELdidClickGhosty(button: UIButton) {
         debugPrint("pressed ghosty")
 		NotificationCenter.default.post(name: Notification.Name.GhosteryButtonPressed, object: self.currentURL?.absoluteString)
+    }
+    
+    
+    @objc func SELDidPressPageOptionsButton(button: UIButton) {
+        self.delegate?.urlBarDidPressCliqzPageOptions(self, from: button)
     }
     
     override func commonInit() {
@@ -70,6 +107,9 @@ class CliqzURLBar: URLBarView {
         
         if ghosteryButton.superview == nil {
             addSubview(ghosteryButton)
+        }
+        if pageOptionsButton.superview == nil {
+            addSubview(pageOptionsButton)
         }
         
         line.snp.makeConstraints { make in
@@ -136,6 +176,12 @@ class CliqzURLBar: URLBarView {
             make.trailing.equalTo(self.safeArea.trailing)//.offset(-URLBarViewUX.Padding)
         }
         
+        pageOptionsButton.snp.makeConstraints { (make) in
+            make.size.equalTo(TabLocationViewUX.ButtonSize)
+            make.centerY.equalTo(self)
+            make.trailing.equalTo(self.ghosteryButton.snp.leading)
+        }
+        
         setStyle()
     }
     
@@ -147,11 +193,17 @@ class CliqzURLBar: URLBarView {
     override func prepareOverlayAnimation() {
         super.prepareOverlayAnimation()
         bringSubview(toFront: ghosteryButton)
+        bringSubview(toFront: pageOptionsButton)
     }
     
     override func transitionToOverlay(_ didCancel: Bool = false) {
         super.transitionToOverlay()
         ghosteryButton.alpha = inOverlayMode ? 0 : 1
+        if inOverlayMode {
+            pageOptionsButton.alpha = 0
+        } else {
+            pageOptionsButton.alpha = self.currentURL == nil ? 1 : 0
+        }
     }
     
     override func updateConstraints() {
@@ -201,7 +253,7 @@ class CliqzURLBar: URLBarView {
                     make.leading/*.trailing*/.equalTo(self).inset(UIEdgeInsets(top: 0, left: URLBarViewUX.LocationLeftPadding-1, bottom: 0, right: URLBarViewUX.LocationLeftPadding-1))
                 }
                 
-                make.trailing.equalTo(self.ghosteryButton.snp.leading).offset(-URLBarViewUX.Padding)
+                make.trailing.equalTo(self.ghosteryButton.snp.leading)//.offset(-URLBarViewUX.Padding)
                 
                 make.height.equalTo(URLBarViewUX.LocationHeight+2)
                 make.centerY.equalTo(self)
@@ -215,39 +267,28 @@ class CliqzURLBar: URLBarView {
     }
 	
 	override func tabLocationViewDidTapPageOptions(_ tabLocationView: TabLocationView, from button: UIButton) {
-		self.delegate?.urlBarDidPressCliqzPageOptions(self, from: tabLocationView.pageOptionsButton)
+		self.delegate?.urlBarDidPressCliqzPageOptions(self, from: button)
 	}
 
     // MARK:- keyboard Accessory View
     override func createLocationTextField() {
         super.createLocationTextField()
         
-        let keyboardAccessoryView = KeyboardAccessoryView.sharedInstance
-        keyboardAccessoryView.setHandelAccessoryViewAction { [weak self] (action) in
-            switch (action) {
-            case .AutoComplete(let completion):
-                self?.locationTextField?.text = completion
+        if SettingsPrefs.shared.getCliqzSearchPref() {
+            let keyboardAccessoryView = KeyboardAccessoryView.sharedInstance
+            keyboardAccessoryView.setHandelAccessoryViewAction { [weak self] (action) in
+                switch (action) {
+                case .AutoComplete(let completion):
+                    self?.locationTextField?.text = completion
+                }
             }
+            locationTextField?.inputAccessoryView = keyboardAccessoryView
         }
-        locationTextField?.inputAccessoryView = keyboardAccessoryView
     }
     
-    override func autocompleteTextField(_ autocompleteTextField: AutocompleteTextField, didEnterText text: String) {
-        if let view = autocompleteTextField.inputAccessoryView as? KeyboardAccessoryView {
-            view.updateCurrentQuery(text)
-        }
-        super.autocompleteTextField(autocompleteTextField, didEnterText: text)
-    }
-    
-    override func autocompleteTextFieldShouldClear(_ autocompleteTextField: AutocompleteTextField) -> Bool {
-        if let view = autocompleteTextField.inputAccessoryView as? KeyboardAccessoryView {
-            view.updateCurrentQuery("")
-        }
-        return super.autocompleteTextFieldShouldClear(autocompleteTextField)
-    }
-
     override func didApplyTheme(_ theme: Theme) {
         ghosteryButton.applyTheme(theme)
+        pageOptionsButton.tintColor = UIColor.CliqzURLBar.Background.colorFor(theme)
     }
 }
 
@@ -255,11 +296,5 @@ class CliqzURLBar: URLBarView {
 extension CliqzURLBar {
     func hideKeyboard() {
         locationTextField?.resignFirstResponder()
-    }
-}
-
-extension CliqzURLBar: GhosteryCountDataSource {
-    func currentUrl() -> URL? {
-        return self.currentURL
     }
 }

@@ -28,8 +28,8 @@ final class BlockListFileManager {
         //In the case type == .antitracking, the blockListIdentifiers need to be mapped to jsonIdentifiers
         //Then merge all the small json block lists into a big one.
         
-        func loadJson(path: String) -> String {
-            guard let jsonFileContent = try? String(contentsOfFile: path, encoding: String.Encoding.utf8) else { fatalError("Rule list for \(forIdentifier) doesn't exist!") }
+        func loadJson(path: String) -> String? {
+            guard let jsonFileContent = try? String(contentsOfFile: path, encoding: String.Encoding.utf8) else { return nil }//fatalError("Rule list for \(forIdentifier) doesn't exist!") }
             return jsonFileContent
         }
         
@@ -48,7 +48,7 @@ final class BlockListFileManager {
                 return
             }
         }
-        else if forIdentifier.contains("adblocker_"), let path = Bundle.main.path(forResource: forIdentifier, ofType: "json", inDirectory: "AdBlocker/Chunks") {
+        else if forIdentifier.contains("adblockerFile_"), let path = Bundle.main.path(forResource: forIdentifier, ofType: "json", inDirectory: "AdBlocker/Chunks") {
             completion(loadJson(path: path))
             return
         }

@@ -190,13 +190,20 @@ class SearchEngines {
             return []
         }
         let possibilities = possibilitiesForLanguageIdentifier(languageIdentifier)
+        /* Cliqz: Added duckduckgo to engineNames despite the region
         let engineNames = defaultSearchPrefs.visibleDefaultEngines(for: possibilities, and: region)
+        */
+        var engineNames = defaultSearchPrefs.visibleDefaultEngines(for: possibilities, and: region)
+        if !engineNames.contains("ddg") {
+            engineNames.append("ddg")
+        }
+        
         let defaultEngineName = defaultSearchPrefs.searchDefault(for: possibilities, and: region)
         assert(engineNames.count > 0, "No search engines")
 
         return engineNames.map({ (name: $0, path: pluginDirectory.appendingPathComponent("\($0).xml").path) })
             .filter({ FileManager.default.fileExists(atPath: $0.path) })
-            .flatMap({ parser.parse($0.path, engineID: $0.name) })
+            .compactMap({ parser.parse($0.path, engineID: $0.name) })
             .sorted { e, _ in e.shortName == defaultEngineName }
     }
 

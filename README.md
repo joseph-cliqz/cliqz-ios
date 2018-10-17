@@ -6,9 +6,9 @@ This branch (master)
 
 This branch is for mainline development.
 
-This branch only works with Xcode 9.2 and supports iOS 10, and 11.
+This branch only works with Xcode 9.3 and supports iOS 10, and 11.
 
-This branch is written in Swift 3.2.
+This branch is written in Swift 4
 
 Please make sure you aim your pull requests in the right direction.
 
@@ -22,7 +22,8 @@ We encourage you to participate in this open source project. We love Pull Reques
 Building the code
 -----------------
 
-> __As of Sept. 16, 2016, this project requires Xcode 8.__
+> __As of April 2018, this project requires Xcode 9.3.__
+> __Latest Node version 10 breaks. Use node v9.__
 
 1. Install the latest [Xcode developer tools](https://developer.apple.com/xcode/downloads/) from Apple.
 1. Install Carthage
@@ -30,17 +31,26 @@ Building the code
     brew update
     brew install carthage
     ```
-1. Clone the repository:
+1. Install [cocoadpods](https://cocoapods.org/)
     ```shell
-    git clone https://github.com/cliqz-oss/ghostery-ios
+    sudo gem install cocoapods
+    ```
+1. Fork the repository https://github.com/ghostery/browser-ios
+1. Clone the forked repository:
+    ```shell
+    git clone https://github.com/YOUR_USERNAME/ghostery-ios
     ```
 1. Pull in the project dependencies:
     ```shell
     cd ghostery-ios
     sh ./bootstrap.sh
+    npm install
+    npm run bundle
+    pod install
     ```
-1. Open `Client.xcodeproj` in Xcode.
+1. Open `Client.xcworkspace` in Xcode.
 1. Build the `Fennec` scheme in Xcode.
+
 
 ## Building User Scripts
 

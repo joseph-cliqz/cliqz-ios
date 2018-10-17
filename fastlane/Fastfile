@@ -14,14 +14,68 @@ default_platform(:ios)
 platform :ios do
   desc "Description of what the lane does"
 
-  # Configuring Sentry DSN
-  sh("cd .. && plutil -replace SentryDSN -string $SentryDSN Client/Info.plist")
-    
-  # Building ReactNative Entension
-  sh("cd .. && npm run bundle")
+  lane :exportLocalizations do
+    import_repository(
+      url: 'https://github.com/cliqz-oss/ios-l10n-scripts.git',
+      clone_folder: "../build-tools",
+    )
+    sh("cd .. && sh ../build-tools/export-locales-cliqz.sh Client.xcodeproj browser-ios-l10n cliqz-ios.xliff")
+  end
   
+  lane :importLocalizations do
+    # Import Firefox localizations
+    import_repository(
+      url: 'https://github.com/cliqz-oss/ios-l10n-scripts.git',
+      clone_folder: "../build-tools",
+    )
+
+    sh("cd .. && sh ../build-tools/import-locales-firefox.sh --release")
+
+    # revert changes that Firefox did to InfoPlist.strings
+    sh("cd .. && git checkout Client/en.lproj/InfoPlist.strings")
+
+    # Import Cliqz localizations
+    import_repository(
+      url: 'https://github.com/cliqz-oss/browser-ios-l10n.git',
+      clone_folder: "../build-tools/cliqzios-l10n",
+    )
+
+    import_cliqz_localizations(
+      l10n_folder: "../build-tools/cliqzios-l10n",
+    )
+
+  end
   
-  lane :beta do    
+  lane :clearCache do
+
+    # Remove the Cache
+    sh("cd .. && npm cache clean --force && rm -rf Cartfile.resolved Carthage node_modules Podfile.lock Pods && rm -rf ~/Library/Caches/org.carthage.CarthageKit")
+
+  end
+
+  lane :prepare do
+
+    # Run Bootstrap for Carthage
+    sh("cd .. && carthage bootstrap --verbose --platform ios --color auto --cache-builds")
+
+    # Install NPM and POD Dependencies and Run the Build Script for NPM Dependencies.
+    begin
+      sh("cd .. && npm install")
+    rescue
+      sh("cd .. && npm install")
+    end
+    sh("cd .. && pod install")
+    sh("cd .. && npm run build")
+
+  end
+
+  lane :nightly do
+
+    # Configuring Sentry DSN
+    sh("cd .. && plutil -replace SentryDSN -string $SentryDSN Client/Info.plist")
+
+    # Building ReactNative Entension
+    sh("cd .. && npm run bundle")
 
     create_keychain(
       name: ENV["MATCH_KEYCHAIN_NAME"],
@@ -36,7 +90,7 @@ platform :ios do
       keychain_name: ENV["MATCH_KEYCHAIN_NAME"],
       keychain_password: ENV["MATCH_PASSWORD"],
       git_branch: "new-browser-ios-beta",
-      app_identifier: ["com.cliqz.ios.newCliqz", "*"],
+      app_identifier: ["com.cliqz.ios.newCliqz", "com.cliqz.ios.newCliqz.ShareTo", "*"],
       readonly: true,
       verbose: true
     )
@@ -50,11 +104,13 @@ platform :ios do
       workspace: "Client.xcworkspace",
       clean: "true",
       scheme: "Firefox",
-      xcconfig: "Client/Configuration/Firefox.xcconfig",      
+      xcconfig: "Client/Configuration/Firefox.xcconfig",
+      xcargs: "OTHER_SWIFT_FLAGS\='$(value) -DBETA'",
       skip_profile_detection: "true",
       export_options: {
-        provisioningProfiles: { 
+        provisioningProfiles: {
           "com.cliqz.ios.newCliqz" => "match AppStore com.cliqz.ios.newCliqz",
+          "com.cliqz.ios.newCliqz.ShareTo" => "match AppStore com.cliqz.ios.newCliqz.ShareTo",
         }
       }
     )
@@ -64,11 +120,21 @@ platform :ios do
       demo_account_required: "false",
       skip_waiting_for_build_processing: "true"
     )
+
+    sentry_upload_dsym(
+      auth_token: ENV["SENTRY_AUTH_TOKEN"],
+      org_slug: 'cliqz',
+      project_slug: 'new-cliqz',
+    )
   end
 
+  lane :beta do
 
+    # Configuring Sentry DSN
+    sh("cd .. && plutil -replace SentryDSN -string $SentryDSN Client/Info.plist")
 
-  lane :release do    
+    # Building ReactNative Entension
+    sh("cd .. && npm run bundle")
 
     create_keychain(
       name: ENV["MATCH_KEYCHAIN_NAME"],
@@ -84,7 +150,7 @@ platform :ios do
       keychain_password: ENV["MATCH_PASSWORD"],
       git_branch: "ghostery-ios",
       team_id: ENV["DEVELOPER_TEAM_ID"],
-      app_identifier: ["com.evidon.Ghostery", "*"],
+      app_identifier: ["com.evidon.Ghostery", "com.evidon.Ghostery.ShareTo", "*"],
       readonly: true,
       verbose: true
     )
@@ -94,18 +160,81 @@ platform :ios do
       clean: "true",
       scheme: "Ghostery",
       xcconfig: "Client/Configuration/Ghostery.xcconfig",
+      xcargs: "OTHER_SWIFT_FLAGS\='$(value) -DBETA'",
       skip_profile_detection: "true",
       export_options: {
         provisioningProfiles: { 
-          "com.evidon.Ghostery" => "match AppStore com.evidon.Ghostery"
+          "com.evidon.Ghostery" => "match AppStore com.evidon.Ghostery",
+          "com.evidon.Ghostery.ShareTo" => "match AppStore com.evidon.Ghostery.ShareTo",
         }
       }
     )
 
     upload_to_testflight(
-      changelog: "Ghostery Nightly build",
+      changelog: "Ghostery Beta",
       demo_account_required: "false",
       skip_waiting_for_build_processing: "true"
+    )
+
+    sentry_upload_dsym(
+      auth_token: ENV["SENTRY_AUTH_TOKEN"],
+      org_slug: 'cliqz',
+      project_slug: 'ghostery',
+    )
+  end
+
+  lane :release do
+
+    # Configuring Sentry DSN
+    sh("cd .. && plutil -replace SentryDSN -string $SentryDSN Client/Info.plist")
+
+    # Building ReactNative Entension
+    sh("cd .. && npm run bundle")
+
+    create_keychain(
+      name: ENV["MATCH_KEYCHAIN_NAME"],
+      password: ENV["MATCH_PASSWORD"],
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      add_to_search_list: true
+    )
+
+    match(
+      keychain_name: ENV["MATCH_KEYCHAIN_NAME"],
+      keychain_password: ENV["MATCH_PASSWORD"],
+      git_branch: "ghostery-ios",
+      team_id: ENV["DEVELOPER_TEAM_ID"],
+      app_identifier: ["com.evidon.Ghostery", "com.evidon.Ghostery.ShareTo", "*"],
+      readonly: true,
+      verbose: true
+    )
+
+    build_app(
+      workspace: "Client.xcworkspace",
+      clean: "true",
+      scheme: "Ghostery",
+      xcconfig: "Client/Configuration/Ghostery.xcconfig",
+      xcargs: "OTHER_SWIFT_FLAGS\='$(value) -DRELEASE'",
+      skip_profile_detection: "true",
+      export_options: {
+        provisioningProfiles: { 
+          "com.evidon.Ghostery" => "match AppStore com.evidon.Ghostery",
+          "com.evidon.Ghostery.ShareTo" => "match AppStore com.evidon.Ghostery.ShareTo",
+        }
+      }
+    )
+
+    upload_to_testflight(
+      changelog: "Ghostery Release",
+      demo_account_required: "false",
+      skip_waiting_for_build_processing: "true"
+    )
+
+    sentry_upload_dsym(
+      auth_token: ENV["SENTRY_AUTH_TOKEN"],
+      org_slug: 'cliqz',
+      project_slug: 'ghostery',
     )
   end
 

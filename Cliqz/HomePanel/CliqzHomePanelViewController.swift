@@ -10,6 +10,7 @@ import Shared
 import SnapKit
 import UIKit
 import Storage
+import RxSwift
 
 class CliqzHomePanelViewController: UIViewController, UITextFieldDelegate {
     
@@ -17,7 +18,16 @@ class CliqzHomePanelViewController: UIViewController, UITextFieldDelegate {
     var notificationToken: NSObjectProtocol!
     var panels: [HomePanelDescriptor]!
     var url: URL?
+	var shouldShowKeyboard = true
+    var isPrivate = false {
+        didSet {
+            self.overlayView?.isHidden = !isPrivate
+        }
+    }
+
     weak var delegate: HomePanelViewControllerDelegate?
+    private let disposeBag = DisposeBag()
+    private let offrzNotificationImage = UIImageView(image: UIImage.circle(diameter: 7.5, color: UIColor.init(colorString: "A10099")))
     
     var selectedPanel: HomePanelType? = nil {
         didSet {
@@ -49,6 +59,7 @@ class CliqzHomePanelViewController: UIViewController, UITextFieldDelegate {
     }
     
     fileprivate let backgroundView = UIImageView()
+    fileprivate var overlayView: UIView!
     fileprivate let segmentedControl: UISegmentedControl
     fileprivate let controllerContainerView: UIView = UIView()
     
@@ -65,14 +76,14 @@ class CliqzHomePanelViewController: UIViewController, UITextFieldDelegate {
         
         self.panels = CliqzHomePanels().enabledPanels
         
-        let imageNames = ["panelIconTopSites", "panelIconFavorite", "panelIconCliqzHistory", "panelIconOffrz"]
+        let imageNames = ["panelIconFreshtab", "panelIconCliqzHistory", "panelIconOffrz", "panelIconFavorite"]
         let images = imageNames.map { (name) -> UIImage in return UIImage.templateImageNamed(name)! }
         segmentedControl =  UISegmentedControl(items: images)
         
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
         
         //Notifications
-        NotificationCenter.default.addObserver(self, selector: #selector(orientationDidChange), name: Notification.Name.UIDeviceOrientationDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(orientationDidChange), name: Notification.Name.DeviceOrientationChanged, object: nil)
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -87,15 +98,22 @@ class CliqzHomePanelViewController: UIViewController, UITextFieldDelegate {
         super.viewDidLoad()
         
         view.addSubview(backgroundView)
+        overlayView = UIView.overlay(frame: UIScreen.main.bounds)
+        overlayView.isHidden = !isPrivate
+        view.addSubview(overlayView)
 
+        segmentedControl.addSubview(offrzNotificationImage)
+        offrzNotificationImage.isHidden = true
+        
         segmentedControl.addTarget(self, action: #selector(segmentedControlValueChanged), for: .valueChanged)
         view.addSubview(segmentedControl)
-        
         view.addSubview(controllerContainerView)
 		
         setStyling()
         setInitialConstraints()
         setBackgroundImage()
+        updateOffrzIcon()
+        adjustOffrzNotificationImageConstraints()
     }
     
     func setStyling() {
@@ -108,9 +126,11 @@ class CliqzHomePanelViewController: UIViewController, UITextFieldDelegate {
         backgroundView.snp.makeConstraints { (make) in
             make.top.bottom.trailing.leading.equalToSuperview()
         }
-        
+        overlayView.snp.makeConstraints { (make) in
+            make.top.bottom.trailing.leading.equalToSuperview()
+        }
         segmentedControl.snp.makeConstraints { (make) in
-            make.top.equalToSuperview()
+            make.top.equalToSuperview().offset(10)
             make.leading.equalToSuperview().offset(10)
             make.trailing.equalToSuperview().inset(10)
         }
@@ -134,12 +154,12 @@ class CliqzHomePanelViewController: UIViewController, UITextFieldDelegate {
         currentIndexType = indexType
         currentOrientation = orientation
         
-        if segmentedControl.selectedSegmentIndex < 1 {
-            backgroundView.image = UIImage.cliqzBackgroundImage()
-        }
-        else {
-            backgroundView.image = UIImage.cliqzBackgroundImage(blurred: true)
-        }
+//        if segmentedControl.selectedSegmentIndex < 1 {
+            backgroundView.image = BackgroundImageManager.shared.getImage()
+//        }
+//        else {
+//            backgroundView.image = BackgroundImageManager.shared.getBlurredImage()
+//        }
     }
     
     func dismissKeyboard(_ sender: Any? = nil) {
@@ -153,6 +173,7 @@ extension CliqzHomePanelViewController {
         self.dismissKeyboard()
         setBackgroundImage()
         selectedPanel = HomePanelType(rawValue: control.selectedSegmentIndex) //control.selectedSegmentIndex must be between 0 and 3
+        self.updateOffrzIcon()
     }
     
     fileprivate func hideCurrentPanel() {
@@ -187,6 +208,7 @@ extension CliqzHomePanelViewController {
     
     @objc func orientationDidChange(_ notification: Notification) {
         setBackgroundImage()
+        adjustOffrzNotificationImageConstraints()
     }
 }
 
@@ -231,5 +253,31 @@ extension CliqzHomePanelViewController: HomePanelDelegate {
 extension CliqzHomePanelViewController: Themeable {
     func applyTheme(_ theme: Theme) {
         return
+    }
+}
+
+
+//MARK: - Offrz notification image
+extension CliqzHomePanelViewController {
+    fileprivate func updateOffrzIcon() {
+        OffrzDataSource.shared.observable.asObserver().subscribe(onNext: {[weak self] value in
+            DispatchQueue.main.async {
+                self?.offrzNotificationImage.isHidden = !OffrzDataSource.shared.hasUnseenOffrz()
+                self?.adjustOffrzNotificationImageConstraints()
+                
+            }
+        }).disposed(by: disposeBag)
+        
+        OffrzDataSource.shared.loadOffrz()
+    }
+    
+    fileprivate func adjustOffrzNotificationImageConstraints() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            let segmentWidth = self.segmentedControl.bounds.width / 4
+            self.offrzNotificationImage.snp.remakeConstraints { (make) in
+                make.top.equalToSuperview().offset(3)
+                make.right.equalTo(self.segmentedControl.snp.right).offset(-1.5 * segmentWidth + 13)
+            }
+        }
     }
 }

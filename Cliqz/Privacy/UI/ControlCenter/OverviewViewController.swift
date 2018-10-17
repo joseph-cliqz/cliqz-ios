@@ -11,28 +11,377 @@ import Charts
 
 protocol NotchViewDelegate: class {
     func switchValueChanged(value: Bool)
-	func viewIsDragging(value: Float, velocity: Float)
-	func viewStopDragging(value: Float)
+	func viewIsDragging(translation: Float, velocity: Float)
+	func viewStopDragging(velocity: Float)
+    func domainOnEnhancedViewPressed()
+    func allWebsitesOnEnhancedViewPressed()
+}
+
+protocol TickButtonProtocol: class {
+    func didSelect(button: TickButton, isSelected: Bool)
+}
+
+class TickButton: UIButton {
+    let topSep = UIView()
+    let bottomSep = UIView()
+    let tickView = UIImageView()
+    
+    let label = UILabel()
+    let subtitleLabel = UILabel()
+    
+    weak var delegate: TickButtonProtocol? = nil
+    
+    var subtitle: Bool = false
+    
+    var identifier: String = ""
+    
+    private var _sepColor: UIColor = UIColor.init(red: 0.91, green: 0.91, blue: 0.91, alpha: 0.91)
+    var sepColor: UIColor {
+        get {
+            return _sepColor
+        }
+        set {
+            _sepColor = newValue
+            setStyles()
+        }
+    }
+    
+    private var _bgColorSelected: UIColor = UIColor.init(red: 0.91, green: 0.91, blue: 0.91, alpha: 0.91)
+    var bgColorSelected: UIColor {
+        get {
+            return _bgColorSelected
+        }
+        set {
+            _bgColorSelected = newValue
+        }
+    }
+    
+    private var _labelTextColor: UIColor = UIColor.black
+    var labelTextColor: UIColor {
+        get {
+            return _labelTextColor
+        }
+        set {
+            _labelTextColor = newValue
+            self.label.textColor = _labelTextColor
+        }
+    }
+    
+    private var _subtitleLabelTextColor: UIColor = UIColor.black
+    var subtitleLabelTextColor: UIColor {
+        get {
+            return _subtitleLabelTextColor
+        }
+        set {
+            _subtitleLabelTextColor = newValue
+            self.subtitleLabel.textColor = _subtitleLabelTextColor
+        }
+    }
+    
+    private var _leftTextInset: CGFloat = 10.0
+    var leftTextInset: CGFloat {
+        get {
+            return _leftTextInset
+        }
+        set {
+            _leftTextInset = newValue
+            self.label.snp.updateConstraints { (make) in
+                make.left.equalToSuperview().offset(_leftTextInset)
+            }
+        }
+    }
+    
+    
+    override var isSelected: Bool {
+        didSet {
+            if isSelected == true {
+                tickView.isHidden = false
+                delegate?.didSelect(button: self, isSelected: true)
+            }
+            else {
+                tickView.isHidden = true
+                delegate?.didSelect(button: self, isSelected: false)
+            }
+        }
+    }
+    
+    override var isHighlighted: Bool {
+        didSet {
+            if isHighlighted == true {
+                UIView.animate(withDuration: 0.1) { [unowned self] in
+                    self.backgroundColor = self.bgColorSelected
+                }
+            }
+            else {
+                UIView.animate(withDuration: 0.1) { [unowned self] in
+                    self.backgroundColor = .clear
+                }
+            }
+        }
+    }
+    
+    override var isEnabled: Bool {
+        didSet {
+            if isEnabled {
+                self.titleLabel?.textColor = UIColor.black
+                self.label.textColor = labelTextColor
+                self.subtitleLabel.textColor = subtitleLabelTextColor
+            }
+            else {
+                self.titleLabel?.textColor = UIColor.cliqzGrayFunctional
+                self.label.textColor = UIColor.cliqzGrayFunctional
+                self.subtitleLabel.textColor = UIColor.cliqzGrayFunctional
+            }
+        }
+    }
+    
+    init(frame: CGRect = CGRect.zero, subtitle: Bool = false) {
+        super.init(frame: frame)
+        self.subtitle = subtitle
+        //self.contentHorizontalAlignment = .left
+        self.addSubview(topSep)
+        self.addSubview(bottomSep)
+        self.addSubview(label)
+        if subtitle {
+            self.addSubview(subtitleLabel)
+        }
+        self.addSubview(tickView)
+        
+        setConstraints()
+        setStyles()
+        
+        tickView.image = UIImage(named: "checkmark")
+        tickView.isHidden = true
+    }
+    
+    func setConstraints() {
+        
+        if subtitle {
+            
+            label.snp.makeConstraints { (make) in
+                make.left.equalToSuperview().offset(leftTextInset)
+                make.right.equalTo(tickView.snp.left)
+                make.bottom.equalTo(self.snp.bottom).dividedBy(2).offset(2)
+            }
+            
+            subtitleLabel.snp.makeConstraints { (make) in
+                make.left.equalToSuperview().offset(leftTextInset)
+                make.right.equalTo(tickView.snp.left)
+                make.top.equalTo(label.snp.bottom)
+            }
+        }
+        else {
+            label.snp.makeConstraints { (make) in
+                make.left.equalToSuperview().offset(leftTextInset)
+                make.right.equalTo(tickView.snp.left)
+                make.centerY.equalToSuperview()
+            }
+        }
+        
+        topSep.snp.makeConstraints { (make) in
+            make.top.left.right.equalToSuperview()
+            make.height.equalTo(1)
+        }
+        
+        bottomSep.snp.makeConstraints { (make) in
+            make.bottom.left.right.equalToSuperview()
+            make.height.equalTo(1)
+        }
+        
+        tickView.snp.makeConstraints { (make) in
+            make.width.equalTo(19.5)
+            make.height.equalTo(15)
+            make.centerY.equalToSuperview()
+            make.right.equalToSuperview().offset(-10)
+        }
+    }
+    
+    func setStyles() {
+        tickView.backgroundColor = .clear
+        backgroundColor = .clear
+        label.backgroundColor = .clear
+        subtitleLabel.backgroundColor = .clear
+        topSep.backgroundColor = sepColor
+        bottomSep.backgroundColor = sepColor
+    }
+    
+    override func setTitle(_ title: String?, for state: UIControlState) {
+        label.text = title
+    }
+    
+    override func setTitleColor(_ color: UIColor?, for state: UIControlState) {
+        if let color = color {
+            labelTextColor = color
+        }
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+protocol EnhancedAdblockerViewProtocol: class {
+    func domainPressed()
+    func allWebsitesPressed()
+}
+
+class EnhancedAdblockerView: UIView {
+    let label = UILabel()
+    let domainButton = TickButton()
+    let allWebsitesButton = TickButton()
+    
+    let labelContainer = UIView()
+    let buttonContainer = UIView()
+    
+    weak var delegate: EnhancedAdblockerViewProtocol? = nil
+    
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        self.addSubview(labelContainer)
+        self.addSubview(buttonContainer)
+        labelContainer.addSubview(label)
+        buttonContainer.addSubview(domainButton)
+        buttonContainer.addSubview(allWebsitesButton)
+        
+        let domainButtonString = NSLocalizedString("This Domain", tableName: "Cliqz", comment:"[Enhanced Adblocker] Domains Button Title")
+        let allWebsitesButtonString = NSLocalizedString("All Websites", tableName: "Cliqz", comment:"[Enhanced Adblocker] Domains Button Title")
+        
+        domainButton.setTitle(domainButtonString, for: .normal)
+        allWebsitesButton.setTitle(allWebsitesButtonString, for: .normal)
+        
+        setContraints()
+        setStyles()
+        
+        domainButton.addTarget(self, action: #selector(domainPressed), for: .touchUpInside)
+        allWebsitesButton.addTarget(self, action: #selector(allWebsitesPressed), for: .touchUpInside)
+        
+        domainButton.tag = 1
+        allWebsitesButton.tag = 2
+        
+        domainButton.delegate = self
+        allWebsitesButton.delegate = self
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    func setContraints() {
+        
+        labelContainer.snp.makeConstraints { (make) in
+            make.top.left.right.equalToSuperview()
+            make.height.equalToSuperview().dividedBy(4)
+        }
+        
+        buttonContainer.snp.makeConstraints { (make) in
+            make.top.equalTo(labelContainer.snp.bottom)
+            make.bottom.left.right.equalToSuperview()
+        }
+        
+        label.snp.makeConstraints { (make) in
+            make.right.top.bottom.equalToSuperview()
+            make.left.equalToSuperview().offset(16)
+        }
+
+        domainButton.snp.makeConstraints { (make) in
+            make.left.right.top.equalToSuperview()
+            make.height.equalToSuperview().dividedBy(3)
+        }
+
+        allWebsitesButton.snp.makeConstraints { (make) in
+            make.left.right.equalToSuperview()
+            make.top.equalTo(domainButton.snp.bottom)
+            make.height.equalToSuperview().dividedBy(3)
+        }
+    }
+    
+    func setStyles() {
+        self.backgroundColor = .white
+        labelContainer.backgroundColor = .clear
+        buttonContainer.backgroundColor = .clear
+        label.backgroundColor = .white
+        domainButton.backgroundColor = .white
+        allWebsitesButton.backgroundColor = .white
+        
+        domainButton.setTitleColor(.black, for: .normal)
+        allWebsitesButton.setTitleColor(.black, for: .normal)
+        
+        label.textColor = UIColor.cliqzGrayFunctional
+        label.font = UIFont.systemFont(ofSize: 14)
+        label.numberOfLines = 0
+        
+        //hide one of the separators
+        allWebsitesButton.topSep.isHidden = true
+        
+        domainButton.leftTextInset = 16
+        allWebsitesButton.leftTextInset = 16
+    }
+    
+    @objc func domainPressed(sender: UIButton) {
+        domainButton.isSelected = true
+        self.delegate?.domainPressed()
+    }
+    
+    @objc func allWebsitesPressed(sender: UIButton) {
+        allWebsitesButton.isSelected = true
+        self.delegate?.allWebsitesPressed()
+    }
+    
+}
+
+extension EnhancedAdblockerView: TickButtonProtocol {
+    func didSelect(button: TickButton, isSelected: Bool) {
+        if button.tag == 1 { // domains
+            if isSelected {
+                allWebsitesButton.isSelected = false
+                label.text = NSLocalizedString("Enhanced Adblocking is turned off for this domain.", tableName: "Cliqz", comment:"[Enhanced Adblocker] Domain Label Title")
+            }
+        }
+        else if button.tag == 2 { // all websites
+            if isSelected {
+                domainButton.isSelected = false
+                label.text = NSLocalizedString("Enhanced Adblocking is turned off for all websites.", tableName: "Cliqz", comment:"[Enhanced Adblocker] All Websites Label Title")
+            }
+        }
+    }
 }
 
 class NotchView: UIView {
-
-	private var notchView = UIImageView()
-	private var iconView = UIImageView()
-	private var countLabel = UILabel()
-	private var titleLabel = UILabel()
-	private var switchControl = UISwitch()
-	private var descriptionLabel = UILabel()
+    
+	private let notchView = UIImageView()
+	private let iconView = UIImageView()
+	private let countLabel = UILabel()
+	private let titleLabel = UILabel()
+	private let switchControl = UISwitch()
+	private let descriptionLabel = UILabel()
+    private let container = UIView()
+    private let enhancedView = EnhancedAdblockerView()
 
     weak var delegate: NotchViewDelegate? = nil
+    
+    var isSwitchEnabled: Bool? {
+        set {
+            DispatchQueue.main.async { [weak self] in
+                self?.switchControl.isEnabled = newValue ?? false
+                if newValue == true {
+                    self?.titleLabel.textColor = UIColor.cliqzBluePrimary
+                }
+                else if newValue == false {
+                    self?.titleLabel.textColor = UIColor.cliqzGrayFunctional
+                }
+            }
+        }
+        get {
+            return switchControl.isEnabled
+        }
+    }
 
 	var isSwitchOn: Bool? {
-		set {
-			DispatchQueue.main.async {
-				self.switchControl.isOn = newValue ?? false
-				self.switchValueChanged(s: self.switchControl)
-			}
-		}
+        set {
+            //DispatchQueue.main.async { [weak self] in
+                self.switchControl.isOn = newValue ?? false
+            //}
+        }
 		get {
 			return switchControl.isOn
 		}
@@ -65,32 +414,39 @@ class NotchView: UIView {
 	init() {
 		super.init(frame: CGRect.zero)
 		self.addSubview(notchView)
-		self.addSubview(iconView)
-		self.addSubview(countLabel)
-		self.addSubview(titleLabel)
-		self.addSubview(descriptionLabel)
-		self.addSubview(switchControl)
+        self.addSubview(container)
+		container.addSubview(iconView)
+		container.addSubview(countLabel)
+		container.addSubview(titleLabel)
+		container.addSubview(descriptionLabel)
+		container.addSubview(switchControl)
+        container.addSubview(enhancedView)
 		let gesture = UIPanGestureRecognizer(target: self, action: #selector(wasDragged))
 		self.addGestureRecognizer(gesture)
 		self.isUserInteractionEnabled = true
 		setStyles()
+        
+        enhancedView.delegate = self
 	}
-	
+    
 	required init?(coder aDecoder: NSCoder) {
 		fatalError("init(coder:) has not been implemented")
 	}
 	
 	func setStyles() {
+        self.backgroundColor = .clear
+        container.backgroundColor = .white
 		titleLabel.textColor = UIColor.cliqzBluePrimary
 		titleLabel.font = UIFont.boldSystemFont(ofSize: 18)
 		switchControl.onTintColor = UIColor.cliqzBluePrimary
 		switchControl.transform = CGAffineTransform(scaleX: 0.75, y: 0.75)
         switchControl.addTarget(self, action: #selector(switchValueChanged), for: .valueChanged)
 		notchView.image = UIImage(named:"notch")
+        notchView.backgroundColor = .clear
 		descriptionLabel.textColor = UIColor.cliqzGrayFunctional
 		descriptionLabel.font = UIFont.systemFont(ofSize: 12)
 		descriptionLabel.numberOfLines = 0
-		descriptionLabel.text = NSLocalizedString("Enhanced Ad Blocking anonymizes unblocked and unknown trackers for greater browsing protection.", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Ad Blocking description")
+		descriptionLabel.text = NSLocalizedString("This feature blocks advertisments on websites you visit.", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Ad Blocking description")
 		descriptionLabel.textAlignment = .left
 		countLabel.textColor = UIColor.cliqzBluePrimary
 		countLabel.text = NSLocalizedString("Ads Removed", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Removed Ads indicator")
@@ -98,65 +454,167 @@ class NotchView: UIView {
 
 	override func layoutSubviews() {
 		super.layoutSubviews()
-		self.notchView.snp.remakeConstraints { (make) in
-			make.top.left.right.equalToSuperview()
-			make.height.equalTo(30)
-		}
-		self.titleLabel.snp.remakeConstraints { (make) in
-			make.left.equalToSuperview().offset(20)
-			make.top.equalTo(self.notchView.snp.bottom)
-			make.height.equalTo(25)
-		}
-		self.iconView.snp.remakeConstraints { (make) in
-			make.top.equalTo(titleLabel.snp.bottom).offset(30)
-			make.centerX.equalToSuperview()
-		}
-		self.countLabel.snp.remakeConstraints { (make) in
-			make.top.equalTo(self.iconView.snp.bottom).offset(10)
-			make.centerX.equalTo(self)
-			make.height.equalTo(25)
-		}
-		self.switchControl.snp.remakeConstraints { (make) in
-			make.top.equalTo(self.notchView.snp.bottom)
-			make.height.equalTo(25)
-			make.right.equalTo(self).inset(10)
-		}
-		self.descriptionLabel.snp.remakeConstraints { (make) in
-			make.bottom.equalToSuperview().inset(25)
-			make.left.right.equalToSuperview().inset(20)
-		}
+        let (_ , orientation) = UIDevice.current.getDeviceAndOrientation()
+        
+        if orientation == .portrait {
+            self.notchView.snp.remakeConstraints { (make) in
+                make.top.left.right.equalToSuperview()
+                make.height.equalTo(30)
+            }
+            self.container.snp.makeConstraints { (make) in
+                make.top.equalTo(self.notchView.snp.bottom)
+                make.trailing.leading.bottom.equalToSuperview()
+            }
+            self.titleLabel.snp.remakeConstraints { (make) in
+                make.left.equalToSuperview().offset(20)
+                make.top.equalToSuperview()
+                make.height.equalTo(25)
+            }
+            self.iconView.snp.remakeConstraints { (make) in
+                make.top.equalTo(titleLabel.snp.bottom).offset(30)
+                make.centerX.equalToSuperview()
+            }
+            self.countLabel.snp.remakeConstraints { (make) in
+                make.top.equalTo(self.iconView.snp.bottom).offset(10)
+                make.centerX.equalToSuperview()
+                make.height.equalTo(25)
+            }
+            self.switchControl.snp.remakeConstraints { (make) in
+                make.top.equalToSuperview()
+                make.height.equalTo(25)
+                make.right.equalToSuperview().inset(10)
+            }
+            self.descriptionLabel.snp.remakeConstraints { (make) in
+                make.bottom.equalToSuperview().inset(25)
+                make.left.right.equalToSuperview().inset(20)
+            }
+        }
+        else {
+            self.notchView.snp.remakeConstraints { (make) in
+                make.top.left.right.equalToSuperview()
+                make.height.equalTo(30)
+            }
+            self.container.snp.makeConstraints { (make) in
+                make.top.equalTo(self.notchView.snp.bottom)
+                make.trailing.leading.bottom.equalToSuperview()
+            }
+            self.titleLabel.snp.remakeConstraints { (make) in
+                make.left.equalToSuperview().offset(20)
+                make.top.equalToSuperview()
+                make.height.equalTo(25)
+            }
+            self.iconView.snp.remakeConstraints { (make) in
+                make.top.equalTo(titleLabel.snp.bottom).offset(30)
+                make.centerX.equalToSuperview()
+                make.size.equalTo(44.0)
+            }
+            self.countLabel.snp.remakeConstraints { (make) in
+                make.top.equalTo(self.iconView.snp.bottom).offset(10)
+                make.centerX.equalToSuperview()
+                make.height.equalTo(25)
+            }
+            self.switchControl.snp.remakeConstraints { (make) in
+                make.top.equalToSuperview()
+                make.height.equalTo(25)
+                make.right.equalToSuperview().inset(10)
+            }
+            self.descriptionLabel.snp.remakeConstraints { (make) in
+                make.bottom.equalToSuperview().inset(25)
+                make.left.right.equalToSuperview().inset(20)
+            }
+        }
+        
+        self.enhancedView.snp.makeConstraints { [unowned self](make) in
+            make.top.equalTo(self.snp.top).offset(-ControlCenterUX.adblockerViewInitialOffset)
+            make.left.right.bottom.equalToSuperview()
+        }
 	}
 
     @objc func switchValueChanged(s: UISwitch) {
-        s.isOn ? self.delegate?.switchValueChanged(value: true) : self.delegate?.switchValueChanged(value: false)
-		updateViewStyle(enabled: s.isOn)
+        updateViewStyle()
+        self.delegate?.switchValueChanged(value: s.isOn)
     }
 
 	@objc func wasDragged(gestureRecognizer: UIPanGestureRecognizer) {
 		if gestureRecognizer.state == UIGestureRecognizerState.began || gestureRecognizer.state == UIGestureRecognizerState.changed {
 			let translation = gestureRecognizer.translation(in: self)
-			self.delegate?.viewIsDragging(value: Float(translation.y), velocity: Float(gestureRecognizer.velocity(in: self).y))
+			self.delegate?.viewIsDragging(translation: Float(translation.y), velocity: Float(gestureRecognizer.velocity(in: self).y))
 		}
 		if gestureRecognizer.state == UIGestureRecognizerState.ended {
-			self.delegate?.viewStopDragging(value: Float(gestureRecognizer.velocity(in: self).y))
+			self.delegate?.viewStopDragging(velocity: Float(gestureRecognizer.velocity(in: self).y))
 		}
+        gestureRecognizer.setTranslation(CGPoint.zero, in: self)
 	}
 
-	private func updateViewStyle(enabled isEnabled: Bool) {
-		if isEnabled {
-			iconView.tintColor = UIColor.cliqzBluePrimary
-			countLabel.textColor = UIColor.cliqzBluePrimary
-		} else {
-			iconView.tintColor = UIColor.gray
-			countLabel.textColor = UIColor.gray
-		}
+    func updateViewStyle() {
+        if switchControl.isOn {
+            enhancedView.isHidden = true
+            
+            iconView.isHidden = false
+            countLabel.isHidden = false
+            descriptionLabel.isHidden = false
+            
+            iconView.tintColor = UIColor.cliqzBluePrimary
+            countLabel.textColor = UIColor.cliqzBluePrimary
+        } else {
+            iconView.tintColor = UIColor.gray
+            countLabel.textColor = UIColor.gray
+            
+            enhancedView.isHidden = false
+            
+            iconView.isHidden = true
+            countLabel.isHidden = true
+            descriptionLabel.isHidden = true
+            
+            if UserPreferences.instance.adblockingMode == .blockNone {
+                //select second option - allwebsites
+                enhancedView.allWebsitesButton.isSelected = true
+            }
+            else {
+                enhancedView.domainButton.isSelected = true
+            }
+            
+        }
+        
+        self.layoutIfNeeded()
 	}
+    
+    func activateEnhancedViewButtons(value: Bool) {
+        self.enhancedView.allWebsitesButton.isEnabled = value
+        self.enhancedView.domainButton.isEnabled = value
+    }
 
 }
 
+extension NotchView: EnhancedAdblockerViewProtocol {
+    func domainPressed() {
+        self.delegate?.domainOnEnhancedViewPressed()
+    }
+    
+    func allWebsitesPressed() {
+        self.delegate?.allWebsitesOnEnhancedViewPressed()
+    }
+}
+
 struct ControlCenterUX {
-	static let adblockerViewMaxHeight: Float = 280
-	static let adblockerViewInitialOffset: Float = -85
+    static var adblockerViewMaxHeight: Float {
+        let (_, orientation) = UIDevice.current.getDeviceAndOrientation()
+        if orientation == .portrait {
+            return 280
+        }
+        else {
+            return 220
+        }
+    }
+    static var adblockerViewInitialOffset: Float {
+        let (_, orientation) = UIDevice.current.getDeviceAndOrientation()
+        if orientation == .portrait {
+            return -85
+        }
+        else {
+            return -75
+        }
+    }
 }
 
 class OverviewViewController: UIViewController {
@@ -193,19 +651,34 @@ class OverviewViewController: UIViewController {
 			self.urlLabel.text = pageURL
 		}
 	}
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
 		self.setupComponents()
 		self.setComponentsStyles()
+        NotificationCenter.default.addObserver(self, selector: #selector(updateData), name: detectedTrackerNotification, object: nil)
 	}
 
 	override func viewWillAppear(_ animated: Bool) {
 		super.viewWillAppear(animated)
 		self.updateData()
 	}
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        self.adBlockingView.snp.updateConstraints { [unowned self] (make) in
+            make.top.equalTo(self.view.frame.height + CGFloat(ControlCenterUX.adblockerViewInitialOffset))
+        }
+        UIView.animate(withDuration: 0.2) {
+            self.view.layoutIfNeeded()
+        }
+    }
 
-	private func updateData() {
+	@objc private func updateData() {
         guard let datasource = self.dataSource else { return }
 	
 		self.urlLabel.text = datasource.domainString()
@@ -214,15 +687,19 @@ class OverviewViewController: UIViewController {
         updateBlockedTrackersCount()
         
 		let domainState = datasource.domainState()
-		if domainState == .trusted {
+		if domainState == .trusted, datasource.isGhosteryPaused() == false {
 			setTrustSite(true)
-		} else if domainState == .restricted {
+		} else if domainState == .restricted, datasource.isGhosteryPaused() == false {
 			setRestrictSite(true)
 		}
         else {
             setSiteToNone()
         }
 		setPauseGhostery(datasource.isGhosteryPaused())
+        self.adBlockingView.isSwitchEnabled = !datasource.isGhosteryPaused()
+        self.adBlockingView.isSwitchOn = self.dataSource?.isAdblockerOn()
+        self.adBlockingView.updateViewStyle()
+        self.adBlockingView.activateEnhancedViewButtons(value: !datasource.isGhosteryPaused())
 	}
 
 	private func setupComponents() {
@@ -241,37 +718,35 @@ class OverviewViewController: UIViewController {
         if (orientation == .portrait && device != .iPad) || device == .iPad {
             chart.snp.makeConstraints { (make) in
                 make.left.right.equalToSuperview()
-				make.bottom.equalTo(self.urlLabel.snp.top)
 				if UIDevice.current.isSmallIphoneDevice() {
+					make.top.equalToSuperview()
 					make.height.equalTo(160)
 				} else {
+					make.top.equalToSuperview().offset(5)
 					make.height.equalTo(220)
 				}
             }
             
             self.urlLabel.snp.makeConstraints { (make) in
 				make.left.right.equalTo(self.view).inset(7)
-				make.bottom.equalTo(blockedTrackers.snp.top)
-                make.height.equalTo(20)
+				make.top.equalTo(chart.snp.bottom)
+                make.height.equalTo(17)
             }
             
             self.blockedTrackers.snp.makeConstraints { (make) in
-                make.centerX.equalTo(self.view)
-				if UIDevice.current.isSmallIphoneDevice() {
-					make.bottom.equalTo(self.trustSiteButton.snp.top)
-				} else {
-					make.bottom.equalTo(self.trustSiteButton.snp.top).offset(-40)
-				}
-                make.height.equalTo(30)
+				make.top.equalTo(self.urlLabel.snp.bottom)
+				make.width.equalTo(self.view.snp.width).offset(20)
+                make.centerX.equalToSuperview()
+                make.height.equalTo(50)
             }
-            
+
             self.trustSiteButton.snp.makeConstraints { (make) in
                 make.centerX.equalTo(self.view)
 				make.bottom.equalTo(self.restrictSiteButton.snp.top).offset(-12)
                 make.height.equalTo(40)
                 make.width.equalTo(213)
             }
-            
+
             self.restrictSiteButton.snp.makeConstraints { (make) in
                 make.centerX.equalTo(self.view)
 				if UIDevice.current.isSmallIphoneDevice() {
@@ -290,10 +765,13 @@ class OverviewViewController: UIViewController {
                 make.width.equalTo(213)
             }
             
-            self.adBlockingView.snp.makeConstraints { (make) in
-                make.left.right.equalTo(self.view)
-				make.top.equalTo(self.view.snp.bottom).offset(ControlCenterUX.adblockerViewInitialOffset)
+            self.adBlockingView.snp.makeConstraints { [unowned self] (make) in
+                //make.left.right.equalTo(self.view)
+				//make.top.equalTo(self.view.snp.bottom).offset(ControlCenterUX.adblockerViewInitialOffset)
+                make.width.equalToSuperview()
+                make.centerX.equalToSuperview()
                 make.height.equalTo(ControlCenterUX.adblockerViewMaxHeight)
+                make.top.equalTo(self.view.frame.height + CGFloat(ControlCenterUX.adblockerViewInitialOffset))
             }
         } else {
             let blockedTrackersOffset: CGFloat = 10.0
@@ -315,6 +793,7 @@ class OverviewViewController: UIViewController {
             
             self.blockedTrackers.snp.makeConstraints { (make) in
                 make.centerX.equalTo(self.urlLabel.snp.centerX)
+				make.width.equalTo(self.urlLabel.snp.width)
                 make.top.equalTo(self.urlLabel.snp.bottom).offset(blockedTrackersOffset)
             }
             
@@ -340,9 +819,10 @@ class OverviewViewController: UIViewController {
             }
             
             self.adBlockingView.snp.makeConstraints { (make) in
-                make.left.right.equalTo(self.view)
-                make.top.equalTo(self.view.snp.bottom).offset(-adblockingViewOffset)
-                make.height.equalTo(150)
+                make.width.equalToSuperview()
+                make.centerX.equalToSuperview()
+                make.height.equalTo(ControlCenterUX.adblockerViewMaxHeight)
+                make.top.equalTo(self.view.frame.height + CGFloat(ControlCenterUX.adblockerViewInitialOffset))
             }
         }
         
@@ -357,15 +837,15 @@ class OverviewViewController: UIViewController {
 		let pauseGhostery = NSLocalizedString("Pause Ghostery", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Pause Ghostery button title")
 		self.pauseGhosteryButton.setTitle(pauseGhostery, for: .normal)
         self.pauseGhosteryButton.addTarget(self, action: #selector(pauseGhosteryPressed), for: .touchUpInside)
-        self.pauseGhosteryButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: UIFontWeightMedium)
+        self.pauseGhosteryButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: UIFont.Weight.medium)
 
 		// TODO: Count should be from DataSource
         self.adBlockingView.delegate = self
 		self.adBlockingView.count = 0
 		self.adBlockingView.title = NSLocalizedString("Enhanced Ad Blocking", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Ad blocking switch title")
-		self.adBlockingView.isSwitchOn = self.dataSource?.isGlobalAdblockerOn()
+		self.adBlockingView.isSwitchOn = self.dataSource?.isAdblockerOn()
 		self.adBlockingView.iconName = "adblocking"
-		self.adBlockingView.backgroundColor = UIColor.white
+        self.adBlockingView.updateViewStyle()
 	}
 
 	private func setComponentsStyles() {
@@ -375,8 +855,11 @@ class OverviewViewController: UIViewController {
 		self.urlLabel.textAlignment = .center
 
 		self.blockedTrackers.font = UIFont.systemFont(ofSize: 20)
-
-		self.trustSiteButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: UIFontWeightMedium)
+		self.blockedTrackers.numberOfLines = 2
+		self.blockedTrackers.lineBreakMode = .byWordWrapping
+		self.blockedTrackers.adjustsFontSizeToFitWidth = true
+		self.blockedTrackers.textAlignment = .center
+		self.trustSiteButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: UIFont.Weight.medium)
 		self.trustSiteButton.backgroundColor = UIColor.white
 		self.trustSiteButton.layer.borderColor = ControlCenterUI.buttonGray.cgColor
 		self.trustSiteButton.layer.borderWidth = 1
@@ -388,7 +871,7 @@ class OverviewViewController: UIViewController {
 		self.trustSiteButton.imageEdgeInsets = UIEdgeInsetsMake(0, 0, 0, 10);
 		self.trustSiteButton.titleEdgeInsets = UIEdgeInsetsMake(0, 10, 0, 0);
 
-		self.restrictSiteButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: UIFontWeightMedium)
+		self.restrictSiteButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: UIFont.Weight.medium)
 		self.restrictSiteButton.backgroundColor = UIColor.white
 		self.restrictSiteButton.layer.borderColor = ControlCenterUI.buttonGray.cgColor
 		self.restrictSiteButton.layer.borderWidth = 1
@@ -412,25 +895,112 @@ class OverviewViewController: UIViewController {
 		self.pauseGhosteryButton.titleEdgeInsets = UIEdgeInsetsMake(0, 10, 0, 0);
 	}
     
+    @objc private func pauseGhosteryPressed(_ button: UIButton) {
+        if self.pauseGhosteryButton.isSelected { //already paused
+            //resume
+            pauseGhostery(paused: false)
+            TelemetryHelper.sendControlCenterResumeClick()
+        }
+        else {
+            //pause
+            showPauseActionSheet()
+            TelemetryHelper.sendControlCenterPauseClick()
+        }
+    }
+
+	@objc private func trustSitePressed() {
+        
+        TelemetryHelper.sendControlCenterTrustClick()
+        
+        if !self.trustSiteButton.isSelected {
+            if self.dataSource?.domainState() == .restricted {
+                self.delegate?.undoAll(tableType: .page, completion: {
+                    self.delegate?.changeAll(state: .trusted, tableType: .page, completion: { [weak self] in
+                        self?.pauseGhostery(paused: false)
+                    })
+                })
+            }
+            else {
+                self.delegate?.changeAll(state: .trusted, tableType: .page, completion: { [weak self] in
+                    self?.pauseGhostery(paused: false)
+                })
+            }
+        }
+        else {
+			if (self.dataSource?.domainPrevState() ?? .empty) == .restricted {
+				self.delegate?.changeAll(state: .empty, tableType: .page, completion: { [weak self] in
+					self?.pauseGhostery(paused: false)
+				})
+			} else {
+				self.delegate?.undoAll(tableType: .page, completion: { [weak self] in
+					self?.pauseGhostery(paused: false)
+				})
+			}
+        }
+	}
+
+	@objc private func restrictSitePressed() {
+        
+        TelemetryHelper.sendControlCenterRestrictClick()
+        
+        if !self.restrictSiteButton.isSelected {
+            if self.dataSource?.domainState() == .trusted {
+                self.delegate?.undoAll(tableType: .page, completion: {
+                    self.delegate?.changeAll(state: .restricted, tableType: .page, completion: { [weak self] in
+                        self?.pauseGhostery(paused: false)
+                    })
+                })
+            }
+            else {
+                self.delegate?.changeAll(state: .restricted, tableType: .page, completion: { [weak self] in
+                    self?.pauseGhostery(paused: false)
+                })
+            }
+        } else {
+			if (self.dataSource?.domainPrevState() ?? .empty) == .trusted {
+				self.delegate?.changeAll(state: .empty, tableType: .page, completion: { [weak self] in
+					self?.pauseGhostery(paused: false)
+				})
+			} else {
+				self.delegate?.undoAll(tableType: .page, completion: { [weak self] in
+					self?.pauseGhostery(paused: false)
+				})
+			}
+        }
+	}
+    
+    private func pauseGhostery(paused: Bool, time: Date = Date()) {
+        self.delegate?.pauseGhostery(paused: paused, time: time)
+        if paused == false {
+            if UserPreferences.instance.prevAdblockingMode == .blockAll {
+                self.delegate?.turnGlobalAdblocking(on: true)
+            }
+        }
+        else {
+            self.delegate?.turnGlobalAdblocking(on: false)
+        }
+        self.updateData()
+    }
+    
     private func showPauseActionSheet() {
         
         let pauseAlertController = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
         
         let thirty = UIAlertAction(title: NSLocalizedString("30 minutes", tableName: "Cliqz", comment: "[ControlCenter - Overview] Pause Ghostery for thirty minutes title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
             let time = Date(timeIntervalSinceNow: 30 * 60)
-            self?.pauseGhostery(time)
+            self?.pauseGhostery(paused: true, time: time)
         })
         pauseAlertController.addAction(thirty)
         
         let onehour = UIAlertAction(title: NSLocalizedString("1 hour", tableName: "Cliqz", comment: "[ControlCenter - Overview] Pause Ghostery for one hour title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
             let time = Date(timeIntervalSinceNow: 60 * 60)
-            self?.pauseGhostery(time)
+            self?.pauseGhostery(paused: true, time: time)
         })
         pauseAlertController.addAction(onehour)
         
         let twentyfour = UIAlertAction(title: NSLocalizedString("24 hours", tableName: "Cliqz", comment: "[ControlCenter - Overview] Pause Ghostery for twentyfour hours title"), style: .default, handler: { [weak self] (alert: UIAlertAction) -> Void in
             let time = Date(timeIntervalSinceNow: 24 * 60 * 60)
-            self?.pauseGhostery(time)
+            self?.pauseGhostery(paused: true, time: time)
         })
         pauseAlertController.addAction(twentyfour)
         
@@ -445,45 +1015,6 @@ class OverviewViewController: UIViewController {
         
         self.present(pauseAlertController, animated: true, completion: nil)
     }
-    
-    @objc private func pauseGhosteryPressed() {
-        if self.pauseGhosteryButton.isSelected { //already paused
-            //resume
-            self.delegate?.pauseGhostery(paused: false, time: Date())
-            self.setPauseGhostery(!self.pauseGhosteryButton.isSelected)
-            TelemetryHelper.sendControlCenterResumeClick()
-        }
-        else {
-            //pause
-            showPauseActionSheet()
-        }
-    }
-    
-    func pauseGhostery(_ time: Date) {
-        self.delegate?.pauseGhostery(paused: true, time: time)
-        self.setPauseGhostery(!self.pauseGhosteryButton.isSelected)
-        self.delegate?.chageSiteState(to: .empty)
-        setSiteToNone()
-        TelemetryHelper.sendControlCenterPauseClick()
-    }
-
-	@objc private func trustSitePressed() {
-		setTrustSite(!self.trustSiteButton.isSelected)
-        self.trustSiteButton.isSelected ? self.delegate?.chageSiteState(to: .trusted) : self.delegate?.chageSiteState(to: .empty)
-        self.delegate?.pauseGhostery(paused: false, time: Date())
-        self.setPauseGhostery(false)
-        updateBlockedTrackersCount()
-        TelemetryHelper.sendControlCenterTrustClick()
-	}
-
-	@objc private func restrictSitePressed() {
-		setRestrictSite(!self.restrictSiteButton.isSelected)
-        self.restrictSiteButton.isSelected ? self.delegate?.chageSiteState(to: .restricted) : self.delegate?.chageSiteState(to: .empty)
-        self.delegate?.pauseGhostery(paused: false, time: Date())
-        self.setPauseGhostery(false)
-        updateBlockedTrackersCount()
-        TelemetryHelper.sendControlCenterRestrictClick()
-	}
     
     private func setPauseGhostery(_ value: Bool) {
         self.pauseGhosteryButton.isSelected = value
@@ -539,14 +1070,25 @@ class OverviewViewController: UIViewController {
             self.restrictSiteButton.backgroundColor = UIColor.white
         }
     }
-    
-    private func updateBlockedTrackersCount() {
-        blockedTrackers.text = String(format: NSLocalizedString("%d Tracker(s) Blocked", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Blocked trackers count"), self.dataSource?.blockedTrackerCount() ?? 0)
+
+    fileprivate func updateBlockedTrackersCount() {
+		blockedTrackers.text = String(format: NSLocalizedString("%d Tracker(s) Blocked", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Blocked trackers count"), self.dataSource?.blockedTrackerCount() ?? 0)
+
+		if let domainState = self.dataSource?.domainState() {
+			switch (domainState) {
+			case .trusted:
+				 blockedTrackers.text = NSLocalizedString("You have trusted this site", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Blocked trackers count")
+			case .restricted:
+				blockedTrackers.text = NSLocalizedString("You have restricted this site", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Blocked trackers count")
+			default:
+				break
+			}
+		}
     }
-    
-    private func updateChart() {
+
+    fileprivate func updateChart() {
         guard let datasource = self.dataSource else { return }
-        let countsAndColors = datasource.countAndColorByCategory()
+        let countsAndColors = datasource.countAndColorByCategory(tableType: .page)
         var values: [PieChartDataEntry] = []
         var colors: [UIColor] = []
         for key in countsAndColors.keys {
@@ -555,13 +1097,21 @@ class OverviewViewController: UIViewController {
                 colors.append(touple.1)
             }
         }
+        
+        //Handle the empty case
+        if values.count == 0 {
+            colors = [UIColor.cliqzGrayFunctional]
+            values.append(PieChartDataEntry(value: 1.0))
+        }
+        
         let dataSet = PieChartDataSet(values: values, label: "")
         dataSet.drawIconsEnabled = false
         dataSet.drawValuesEnabled = false
         dataSet.iconsOffset = CGPoint(x: 0, y: 20.0)
         dataSet.colors = colors
         chart?.data = PieChartData(dataSet: dataSet)
-        chart?.centerText = String(format: NSLocalizedString("%d Trackers found", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Detected trackers count"), self.dataSource?.detectedTrackerCount() ?? 0)
+        chart?.centerText = String(format: NSLocalizedString("%d Tracker(s) found", tableName: "Cliqz", comment: "[ControlCenter -> Overview] Detected trackers count"), self.dataSource?.detectedTrackerCount() ?? 0)
+        chart?.accessibilityValue = "\(self.dataSource?.detectedTrackerCount() ?? 0)"
     }
 
 	private func setupPieChart() {
@@ -569,39 +1119,112 @@ class OverviewViewController: UIViewController {
 		chart.chartDescription?.text = ""
 		chart.legend.enabled = false
 		chart.holeRadiusPercent = 0.8
+        chart.accessibilityIdentifier = "donut"
 	}
 }
 
 extension OverviewViewController: NotchViewDelegate {
 
     func switchValueChanged(value: Bool) {
-        self.delegate?.turnGlobalAdblocking(on: value)
+        
+        if value == true {
+            self.delegate?.turnGlobalAdblocking(on: value)
+            self.delegate?.turnDomainAdblocking(on: nil, completion: {
+                DispatchQueue.main.async {
+                    //bring donw the notch if it is up
+                    let top = self.view.frame.height - CGFloat(ControlCenterUX.adblockerViewMaxHeight)
+                    if self.adBlockingView.frame.origin.y == top { //not open
+                        self.moveNotch(velocity: 0.00001)
+                    }
+                }
+            })
+        }
+        else {
+            //Default
+            self.delegate?.turnDomainAdblocking(on: false, completion: {
+                DispatchQueue.main.async {
+                    //bring up the notch if it is not up already
+                    let top = self.view.frame.height - CGFloat(ControlCenterUX.adblockerViewMaxHeight)
+                    if self.adBlockingView.frame.origin.y != top { //not open
+                        self.moveNotch(velocity: -0.00001)
+                    }
+                }
+            })
+        }
 	}
 
-	func viewIsDragging(value: Float, velocity: Float) {
-		self.adBlockingView.snp.updateConstraints { (make) in
-			// TODO: Some more improvements should be done when direction is changed quickly...
-			if velocity < 0 {
-				if value + ControlCenterUX.adblockerViewInitialOffset < -ControlCenterUX.adblockerViewMaxHeight {
-					make.top.equalTo(self.view.snp.bottom).offset(-ControlCenterUX.adblockerViewMaxHeight)
-				} else {
-					make.top.equalTo(self.view.snp.bottom).offset(value + ControlCenterUX.adblockerViewInitialOffset)
-				}
-			} else {
-				make.top.equalTo(self.view.snp.bottom).offset(value - ControlCenterUX.adblockerViewMaxHeight)
-			}
-		}
+	func viewIsDragging(translation: Float, velocity: Float) {
+        let newOffset = self.adBlockingView.frame.origin.y + CGFloat(translation)
+        let upperLimit = self.view.frame.height + CGFloat(ControlCenterUX.adblockerViewInitialOffset) //bottom
+        let lowerLimit = self.view.frame.height - CGFloat(ControlCenterUX.adblockerViewMaxHeight) // top
+        if newOffset <= upperLimit && newOffset >= lowerLimit {
+            self.adBlockingView.snp.updateConstraints { (make) in
+                make.top.equalTo(newOffset)
+            }
+        }
+		
+        self.view.layoutIfNeeded()
 	}
+    
+    func moveNotch(velocity: Float) {
+        let bottom = self.view.frame.height + CGFloat(ControlCenterUX.adblockerViewInitialOffset) //bottom
+        let top = self.view.frame.height - CGFloat(ControlCenterUX.adblockerViewMaxHeight) // top
+        
+        let delta: CGFloat
+        
+        if velocity > 0 {
+            delta = bottom - self.adBlockingView.frame.origin.y
+            self.adBlockingView.snp.updateConstraints { (make) in
+                make.top.equalTo(bottom)
+            }
+        } else {
+            delta = self.adBlockingView.frame.origin.y - top
+            self.adBlockingView.snp.updateConstraints { (make) in
+                make.top.equalTo(top)
+            }
+        }
+        
+        var time: TimeInterval
+        
+        let timeUpperLimit: TimeInterval = 0.4
+        let timeLowerLimit: TimeInterval = 0.2
+        
+        if delta > 0 {
+            time = Double(delta) / abs(Double(velocity))
+        }
+        else {
+            time = timeUpperLimit
+        }
+        
+        if time < 0.2 {
+            time = timeLowerLimit
+        }
+        else if time > 0.4 {
+            time = timeUpperLimit
+        }
+        
+        UIView.animate(withDuration: time) {
+            self.view.layoutIfNeeded()
+        }
+    }
 
-	func viewStopDragging(value: Float) {
-		if value > 0 {
-			self.adBlockingView.snp.updateConstraints { (make) in
-				make.top.equalTo(self.view.snp.bottom).offset(ControlCenterUX.adblockerViewInitialOffset)
-			}
-		} else {
-			self.adBlockingView.snp.updateConstraints { (make) in
-				make.top.equalTo(self.view.snp.bottom).offset(-ControlCenterUX.adblockerViewMaxHeight)
-			}
-		}
+	func viewStopDragging(velocity: Float) {
+        moveNotch(velocity: velocity)
 	}
+    
+    func domainOnEnhancedViewPressed() {
+        debugPrint("domainOnEnhancedViewPressed")
+        self.delegate?.turnDomainAdblocking(on: false, completion: {
+            let prevAdblockerState = UserPreferences.instance.prevAdblockingMode == .blockAll ? true : false
+            self.delegate?.turnGlobalAdblocking(on: prevAdblockerState)
+        })
+    }
+    
+    func allWebsitesOnEnhancedViewPressed() {
+        debugPrint("allWebsitesOnEnhancedViewPressed")
+        
+        self.delegate?.turnDomainAdblocking(on: nil, completion: {
+            self.delegate?.turnGlobalAdblocking(on: false)
+        })
+    }
 }

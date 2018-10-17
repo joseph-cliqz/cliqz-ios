@@ -43,7 +43,10 @@ private extension TrayToBrowserAnimator {
         let tabCollectionViewSnapshot = tabTray.collectionView.snapshotView(afterScreenUpdates: false)!
         tabTray.collectionView.alpha = 0
         tabCollectionViewSnapshot.frame = tabTray.collectionView.frame
+        /*Cliqz: Animation fix - View is below bg image (assumption)
         container.insertSubview(tabCollectionViewSnapshot, at: 0)
+        */
+        container.insertSubview(tabCollectionViewSnapshot, at: 10) // 10 is there just to make sure it is on top.
 
         // Create a fake cell to use for the upscaling animation
         let startingFrame = calculateCollapsedCellFrameUsingCollectionView(tabTray.collectionView, atIndex: expandFromIndex)
@@ -75,10 +78,9 @@ private extension TrayToBrowserAnimator {
             cell.title.transform = CGAffineTransform(translationX: 0, y: -cell.title.frame.height)
 
             bvc.tabTrayDidDismiss(tabTray)
-            /* Cliqz: Change window background color
+            /* Cliqz: Move this code to TabTrayController as the backgroundColor of the window differs between normal and forget mode
             UIApplication.shared.windows.first?.backgroundColor = UIConstants.AppBackgroundColor
             */
-            UIApplication.shared.windows.first?.backgroundColor = UIColor.cliqzURLBarColor
             tabTray.navigationController?.setNeedsStatusBarAppearanceUpdate()
             tabTray.toolbar.transform = CGAffineTransform(translationX: 0, y: UIConstants.BottomToolbarHeight)
             tabCollectionViewSnapshot.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
@@ -94,6 +96,8 @@ private extension TrayToBrowserAnimator {
             bvc.homePanelController?.view.isHidden = false
             bvc.urlBar.isTransitioning = false
             transitionContext.completeTransition(true)
+            // Cliqz: Activate the keyboard if necessary
+            bvc.showKeyboardIfNeeded()
         })
     }
 }
@@ -176,10 +180,9 @@ private extension BrowserToTrayAnimator {
                 cell.frame = finalFrame
                 cell.title.transform = .identity
                 cell.layoutIfNeeded()
-                /* Cliqz: Change window background color
+                /* Cliqz: Move this code to TabTrayController as the backgroundColor of the window differs between normal and forget mode
                 UIApplication.shared.windows.first?.backgroundColor = .TabTrayControllerUX.BackgroundColor
                 */
-                UIApplication.shared.windows.first?.backgroundColor = UIColor.cliqzURLBarColor
                 tabTray.navigationController?.setNeedsStatusBarAppearanceUpdate()
                 
                 transformHeaderFooterForBVC(bvc, toFrame: finalFrame, container: container)
@@ -203,6 +206,9 @@ private extension BrowserToTrayAnimator {
                 resetTransformsForViews([bvc.header, bvc.readerModeBar, bvc.footer])
                 bvc.urlBar.isTransitioning = false
                 transitionContext.completeTransition(true)
+                //Cliqz: dismiss overlay mode when moving to tabsOverview
+                bvc.urlBar.leaveOverlayMode()
+                
             })
         }
     }
@@ -247,7 +253,7 @@ private func headerTransform(_ frame: CGRect, toFrame finalFrame: CGRect, contai
 
 //MARK: Private Helper Methods
 private func calculateCollapsedCellFrameUsingCollectionView(_ collectionView: UICollectionView, atIndex index: Int) -> CGRect {
-    // Cliqz: added check to prevent charing the app when clicking does after swtiching forget mode state
+    // Cliqz: added check to prevent crashing the app when clicking done button after swtiching forget mode state
     guard collectionView.numberOfItems(inSection: 0) > index else { return .zero}
     
     if let attr = collectionView.collectionViewLayout.layoutAttributesForItem(at: IndexPath(item: index, section: 0)) {
@@ -319,10 +325,13 @@ private func createTransitionCellFromTab(_ tab: Tab?, withFrame frame: CGRect) -
     if let favIcon = tab?.displayFavicon {
         cell.favicon.sd_setImage(with: URL(string: favIcon.url)!)
     } else {
+        /* Cliqz: Changed favicon to Cliqz/Ghostery image
         let defaultFavicon = UIImage(named: "defaultFavicon")
+        */
+        let defaultFavicon = UIImage.defaultFavicon()
         if tab?.isPrivate ?? false {
             cell.favicon.image = defaultFavicon
-            cell.favicon.tintColor = (tab?.isPrivate ?? false) ? UIColor.white : UIColor.darkGray
+            cell.favicon.tintColor = (tab?.isPrivate ?? false) ? UIColor.Photon.White100 : UIColor.Photon.Grey60
         } else {
             cell.favicon.image = defaultFavicon
         }

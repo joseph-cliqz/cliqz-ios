@@ -14,13 +14,13 @@ struct TodayStrings {
     /* Cliqz: Moved Firefox Strings to Cliqz table
     static let NewPrivateTabButtonLabel = NSLocalizedString("TodayWidget.NewPrivateTabButtonLabel", tableName: "Today", value: "New Private Tab", comment: "New Private Tab button label")
     */
-    static let NewPrivateTabButtonLabel = NSLocalizedString("TodayWidget.NewForgetTabButtonLabel", tableName: "Cliqz", value: "New Forget Tab", comment: "New Forget Tab button label")
+    static let NewPrivateTabButtonLabel = NSLocalizedString("TodayWidget.NewForgetTabButtonLabel", tableName: "Cliqz", value: "New Ghost Tab", comment: "New Forget Tab button label")
     static let NewTabButtonLabel = NSLocalizedString("TodayWidget.NewTabButtonLabel", tableName: "Today", value: "New Tab", comment: "New Tab button label")
     static let GoToCopiedLinkLabel = NSLocalizedString("TodayWidget.GoToCopiedLinkLabel", tableName: "Today", value: "Go to copied link", comment: "Go to link on clipboard")
 }
 
 private struct TodayUX {
-    static let privateBrowsingColor = UIColor(rgb: 0xCE6EFC)
+    static let privateBrowsingColor = UIColor(rgb: 0xcf68ff)
     static let backgroundHightlightColor = UIColor(white: 216.0/255.0, alpha: 44.0/255.0)
     static let linkTextSize: CGFloat = 10.0
     static let labelTextSize: CGFloat = 14.0

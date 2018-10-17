@@ -9,26 +9,32 @@
 import Foundation
 import RxSwift
 
+protocol FreshTabDelegate: class {
+    func showTopSitesOVerlay()
+    func hideTopSitesOVerlay()
+}
+
 struct TopSitesUX {
-	
 	static let TopSitesMinHeight: CGFloat = 95.0
 	static let TopSitesMaxHeight: CGFloat = 185.0
 	static let TopSitesCellSize = CGSize(width: 76, height: 86)
 	static let TopSitesCountOnRow = 4
 	static let TopSitesOffset = 5.0
+    static let TopSiteHintHeight: CGFloat = 14.0
 }
 
 class TopSitesViewController: UIViewController, HomePanel {
 
 	weak var homePanelDelegate: HomePanelDelegate?
+    weak var freshTabDelegate: FreshTabDelegate?
 
-	fileprivate var dataSource: TopSitesDataSource!
+	fileprivate let dataSource: TopSitesDataSource!
 
 	private let disposeBag = DisposeBag()
 
-	fileprivate var topSitesCollection: UICollectionView?
+    let topSitesCollection = UICollectionView(frame: CGRect.zero, collectionViewLayout: UICollectionViewFlowLayout())
 
-	fileprivate var emptyTopSitesHint: UILabel?
+    let emptyTopSitesHint = UILabel()
 
 	init(dataSource: TopSitesDataSource) {
 		self.dataSource = dataSource
@@ -46,7 +52,7 @@ class TopSitesViewController: UIViewController, HomePanel {
 		
 		self.dataSource.observable.asObserver().subscribe({ value in
 			self.updateViews()
-            self.topSitesCollection?.alpha = 1.0
+            self.topSitesCollection.alpha = 1.0
 		}).disposed(by: disposeBag)
 
 	}
@@ -57,24 +63,24 @@ class TopSitesViewController: UIViewController, HomePanel {
 
 	override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
 		super.viewWillTransition(to: size, with: coordinator)
-		self.topSitesCollection?.collectionViewLayout.invalidateLayout()
+		self.topSitesCollection.collectionViewLayout.invalidateLayout()
 	}
 	
 	override func viewWillLayoutSubviews() {
 		super.viewWillLayoutSubviews()
-		self.topSitesCollection?.collectionViewLayout.invalidateLayout()
+		self.topSitesCollection.collectionViewLayout.invalidateLayout()
 	}
     
     fileprivate func setConstraints() {
-        if self.emptyTopSitesHint?.superview != nil {
-            self.emptyTopSitesHint!.snp.makeConstraints({ (make) in
-                make.top.equalTo(self.view).offset(8)
+        if self.emptyTopSitesHint.superview != nil {
+            self.emptyTopSitesHint.snp.makeConstraints({ (make) in
+                make.top.equalTo(self.view)
                 make.left.right.equalTo(self.view)
-                make.height.equalTo(14)
+                make.height.equalTo(TopSitesUX.TopSiteHintHeight)
             })
         }
         let topSitesHeight = getTopSitesHeight()
-        self.topSitesCollection?.snp.makeConstraints { (make) in
+        self.topSitesCollection.snp.makeConstraints { (make) in
             make.top.equalTo(self.view).offset(FreshtabViewUX.topOffset)
             make.left.equalTo(self.view).offset(FreshtabViewUX.TopSitesOffset)
             make.right.equalTo(self.view).offset(-FreshtabViewUX.TopSitesOffset)
@@ -103,23 +109,21 @@ class TopSitesViewController: UIViewController, HomePanel {
 extension TopSitesViewController {
 
 	fileprivate func setupComponents() {
-		self.topSitesCollection = UICollectionView(frame: CGRect.zero, collectionViewLayout: UICollectionViewFlowLayout())
-		self.topSitesCollection?.delegate = self
-		self.topSitesCollection?.dataSource = self
-		self.topSitesCollection?.backgroundColor = UIColor.clear
-		self.topSitesCollection?.register(TopSiteViewCell.self, forCellWithReuseIdentifier: "TopSite")
-		self.topSitesCollection?.isScrollEnabled = false
-		self.topSitesCollection?.accessibilityLabel = "topSites"
-		self.view.addSubview(self.topSitesCollection!)
-        self.topSitesCollection?.alpha = 0.0
+		self.topSitesCollection.delegate = self
+		self.topSitesCollection.dataSource = self
+		self.topSitesCollection.backgroundColor = UIColor.clear
+		self.topSitesCollection.register(TopSiteViewCell.self, forCellWithReuseIdentifier: "TopSite")
+		self.topSitesCollection.isScrollEnabled = false
+		self.topSitesCollection.accessibilityLabel = "topSites"
+		self.view.addSubview(self.topSitesCollection)
+        self.topSitesCollection.alpha = 0.0
 		
-		self.emptyTopSitesHint = UILabel()
-		self.emptyTopSitesHint?.text = NSLocalizedString("Empty TopSites hint", tableName: "Cliqz", comment: "Hint on Freshtab when there is no topsites")
-		self.emptyTopSitesHint?.font = UIFont.systemFont(ofSize: 12)
-		self.emptyTopSitesHint?.textColor = UIColor.white
-        self.emptyTopSitesHint?.applyShadow()
-		self.emptyTopSitesHint?.textAlignment = .center
-		self.view.addSubview(self.emptyTopSitesHint!)
+		self.emptyTopSitesHint.text = NSLocalizedString("Empty TopSites hint", tableName: "Cliqz", comment: "Hint on Freshtab when there is no topsites")
+		self.emptyTopSitesHint.font = UIFont.systemFont(ofSize: 12)
+		self.emptyTopSitesHint.textColor = UIColor.white
+        self.emptyTopSitesHint.applyShadow()
+		self.emptyTopSitesHint.textAlignment = .center
+		self.view.addSubview(self.emptyTopSitesHint)
 		
 		let tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(cancelActions))
 		tapGestureRecognizer.delegate = self
@@ -129,29 +133,30 @@ extension TopSitesViewController {
 	fileprivate func updateViews() {
 		DispatchQueue.main.async {
 			if self.dataSource.topSitesCount() > 0 {
-				self.emptyTopSitesHint?.isHidden = true
+				self.emptyTopSitesHint.isHidden = true
 			} else {
-				self.emptyTopSitesHint?.isHidden = false
+				self.emptyTopSitesHint.isHidden = false
 			}
             
             let topSitesHeight = self.getTopSitesHeight()
             
-            self.topSitesCollection?.snp.updateConstraints { (make) in
+            self.topSitesCollection.snp.updateConstraints { (make) in
                 make.height.equalTo(topSitesHeight)
             }
             
-			self.topSitesCollection?.reloadData()
+			self.topSitesCollection.reloadData()
 			self.updateViewConstraints()
-			self.parent?.updateViewConstraints()
 		}
 	}
 
-	fileprivate func removeDeletedTopSites() {
-		if let cells = self.topSitesCollection?.visibleCells as? [TopSiteViewCell] {
+    func removeDeletedTopSites() {
+		if let cells = self.topSitesCollection.visibleCells as? [TopSiteViewCell] {
 			for cell in cells {
 				cell.isDeleteMode = false
 			}
 		}
+        self.freshTabDelegate?.hideTopSitesOVerlay()
+        self.dataSource.refresh()
 	}
 
 }
@@ -204,10 +209,12 @@ extension TopSitesViewController: UICollectionViewDataSource, UICollectionViewDe
 	}
 	
 	@objc private func deleteTopSites(_ gestureReconizer: UILongPressGestureRecognizer)  {
-		let cells = self.topSitesCollection?.visibleCells
-		for cell in cells as! [TopSiteViewCell] {
-			cell.isDeleteMode = true
-		}
+        if let cells = self.topSitesCollection.visibleCells as? [TopSiteViewCell] {
+            for cell in cells {
+                cell.isDeleteMode = true
+            }
+        }
+        self.freshTabDelegate?.showTopSitesOVerlay()
 	}
 	
 	func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -215,8 +222,10 @@ extension TopSitesViewController: UICollectionViewDataSource, UICollectionViewDe
 		if let urlString = s?.url {
 			if let url = URL(string: urlString) {
 				self.homePanelDelegate?.homePanel(self, didSelectURL: url, visitType: .link)
+                logTopsiteClick(indexPath.row)
 			} else if let url = URL(string: urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!) {
 				self.homePanelDelegate?.homePanel(self, didSelectURL: url, visitType: .link)
+                logTopsiteClick(indexPath.row)
 			}
 		}
 	}
@@ -263,8 +272,8 @@ extension TopSitesViewController: UIGestureRecognizerDelegate {
 	func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
 		if gestureRecognizer is UITapGestureRecognizer {
 			let location = touch.location(in: self.topSitesCollection)
-			if let index = self.topSitesCollection?.indexPathForItem(at: location),
-				let cell = self.topSitesCollection?.cellForItem(at: index) as? TopSiteViewCell {
+			if let index = self.topSitesCollection.indexPathForItem(at: location),
+				let cell = self.topSitesCollection.cellForItem(at: index) as? TopSiteViewCell {
 				return cell.isDeleteMode
 			}
 			return true
@@ -276,7 +285,6 @@ extension TopSitesViewController: UIGestureRecognizerDelegate {
 extension TopSitesViewController: TopSiteCellDelegate {
 	
 	func hideTopSite(_ index: Int) {
-		// TODO: for now after hiding top site the view will be refreshed and wobbling is stopped. In future we should support hiding of multiple topsites
 		self.dataSource.hideTopSite(at: index)
 	}
 }
@@ -289,6 +297,10 @@ extension TopSitesViewController {
 //		self.logFreshTabSignal(action, target: "topsite", customData: customData)
         TelemetryHelper.sendTopSiteClick()
 	}
+    
+    fileprivate func logTopsiteClick(_ index: Int) {
+        TelemetryHelper.sendTopSiteClick()
+    }
 	
 	fileprivate func logDeleteTopsiteSignal(_ index: Int) {
 		//TODO(Refactoring): Should be inluded back during integration

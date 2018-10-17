@@ -37,7 +37,7 @@ extension String {
     func height(withConstrainedWidth width: CGFloat, font: UIFont) -> CGFloat {
         
         let size = CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)
-        let attrs = [NSFontAttributeName: font]
+        let attrs = [NSAttributedStringKey.font: font]
         let boundingRect = NSString(string: self).boundingRect(with: size,
                                                                options: NSStringDrawingOptions.usesLineFragmentOrigin,
                                                                attributes: attrs, context: nil)
@@ -56,6 +56,21 @@ extension String {
         }
         
         return digestHex
+    }
+    
+    func lastIndex(of string: String) -> Int? {
+        guard let index = range(of: string, options: .backwards) else { return nil }
+        return self.distance(from: self.startIndex, to: index.lowerBound)
+    }
+    
+    func subString(to: Int) -> String {
+        let index = self.index(self.startIndex, offsetBy: to)
+        return String(self.prefix(upTo: index))
+    }
+    
+    func subString(from: Int) -> String {
+        let index = self.index(self.startIndex, offsetBy: from)
+        return  String(self.suffix(from: index))
     }
 
 }

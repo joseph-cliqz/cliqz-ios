@@ -92,7 +92,7 @@ class OpenSearchEngine: NSObject, NSCoding {
     fileprivate func isSearchURLForEngine(_ url: URL?) -> Bool {
         guard let urlHost = url?.hostSLD,
             let queryEndIndex = searchTemplate.range(of: "?")?.lowerBound,
-            let templateURL = URL(string: searchTemplate.substring(to: queryEndIndex)) else { return false }
+            let templateURL = URL(string: String(searchTemplate[..<queryEndIndex])) else { return false }
         return urlHost == templateURL.hostSLD
     }
 
@@ -276,5 +276,20 @@ class OpenSearchParser {
         }
 
         return OpenSearchEngine(engineID: engineID, shortName: shortName, image: uiImage, searchTemplate: searchTemplate, suggestTemplate: suggestTemplate, isCustomEngine: false)
+    }
+}
+
+
+// Cliqz: extension for serializing OpenSearchEngine
+extension OpenSearchEngine {
+    func toDictionary(isDefault: Bool) -> [String: Any] {
+        var dict = [String: Any]()
+        dict["name"] = shortName
+        dict["SearchTermComponent"] = SearchTermComponent
+        dict["LocaleTermComponent"] = LocaleTermComponent
+        dict["base_url"] = searchTemplate
+        dict["default"] = isDefault
+        dict["urls"] = ["text/html": searchTemplate, "application/x-suggestions+json": suggestTemplate]
+        return dict
     }
 }

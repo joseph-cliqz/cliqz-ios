@@ -7,15 +7,41 @@
 //
 
 import Foundation
+import Storage
+import MessageUI
 
 extension NSNotification.Name {
     public static let GhosteryButtonPressed = NSNotification.Name(rawValue: "GhosteryButtonPressedNotification")
     public static let DeviceOrientationChanged = NSNotification.Name(rawValue: "DeviceOrientationChangedNotification")
 }
 
+class OrientationManager {
+    
+    static let shared = OrientationManager()
+    
+    private var lastOrientation: DeviceOrientation
+    
+    init() {
+        lastOrientation = UIDevice.current.getDeviceAndOrientation().1
+        NotificationCenter.default.addObserver(self, selector: #selector(orientationChanged), name: Notification.Name.UIDeviceOrientationDidChange, object: nil)
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc func orientationChanged(_ notification: Notification) {
+        let orientation = UIDevice.current.getDeviceAndOrientation().1
+        if orientation != lastOrientation {
+            lastOrientation = orientation
+            NotificationCenter.default.post(name: NSNotification.Name.DeviceOrientationChanged, object: nil)
+        }
+    }
+}
+
 extension BrowserViewController {
     
-    func ghosteryButtonPressed(notification: Notification) {
+    @objc func ghosteryButtonPressed(notification: Notification) {
         
         if let cc = self.childViewControllers.last,
             let _ = cc as? ControlCenterViewController {
@@ -39,9 +65,9 @@ extension BrowserViewController {
         }
         
 		let controlCenter = ControlCenterViewController()
-        
-        controlCenter.container = self
-        
+		controlCenter.delegate = self
+        controlCenter.privateMode = self.tabManager.selectedTab?.isPrivate ?? false
+
         if let pageUrl = pageUrl {
             controlCenter.pageURL = pageUrl
         }
@@ -49,9 +75,10 @@ extension BrowserViewController {
         let (device,orientation) = UIDevice.current.getDeviceAndOrientation()
         
 		self.addChildViewController(controlCenter)
-        controlCenter.beginAppearanceTransition(true, animated: false)
+        //controlCenter.beginAppearanceTransition(true, animated: false)
         self.view.addSubview(controlCenter.view)
-        controlCenter.endAppearanceTransition()
+        //controlCenter.endAppearanceTransition()
+        TelemetryHelper.sendControlCenterShow()
         
         if orientation == .portrait && device != .iPad {
             controlCenter.view.snp.makeConstraints({ (make) in
@@ -80,6 +107,8 @@ extension BrowserViewController {
             
             applyShadow(view: controlCenter.view)
         }
+        
+        LoadingNotificationManager.shared.controlCenterShown()
 	}
 
 	func hideControlCenter() {
@@ -91,10 +120,34 @@ extension BrowserViewController {
                 c.endAppearanceTransition()
                 c.removeFromParentViewController()
                 NotificationCenter.default.post(name: controlCenterDismissedNotification, object: nil)
+                LoadingNotificationManager.shared.controlCenterClosed()
                 break
             }
         }
 	}
+    
+    func showBlocklistLoadToast() {
+        let text = NSLocalizedString("Applying Changes...", tableName: "Cliqz", comment: "Applying Changes Toast")
+        CustomSimpleToast().showAlertWithText(text, bottomContainer: self.webViewContainer)
+    }
+    
+    func showBlocklistLoadDoneToast() {
+    
+        let text = NSLocalizedString("Changes applied. Refresh page to see them.", tableName: "Cliqz", comment: "Changes applied Toast")
+        let buttonText = NSLocalizedString("Refresh", tableName: "Cliqz", comment: "Refresh Toast Button Text")
+        let toast = ButtonToast(labelText: text, buttonText: buttonText) { [weak self] (pressed) in
+            if pressed {
+                self?.tabManager.selectedTab?.reload()
+            }
+        }
+        self.show(toast: toast)
+        
+        if let toast = self.webViewContainer.subviews.first(where: { (view) -> Bool in
+            return view.tag == 101
+        }) {
+            toast.removeFromSuperview()
+        }
+    }
     
     @objc func orientationDidChange(notification: Notification) {
         hideControlCenter()
@@ -134,7 +187,21 @@ extension BrowserViewController {
 }
 
 extension BrowserViewController: ControlCenterViewControllerDelegate {
+
+	func controlCenter(didSelectURLString url: String) {
+		if let u = URL(string: url) {
+			self.finishEditingAndSubmit(u, visitType: VisitType.link)
+		}
+	}
+	
     func dismiss() {
         self.hideControlCenter()
+    }
+
+}
+
+extension BrowserViewController: MFMailComposeViewControllerDelegate {
+    func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
+        self.dismiss(animated: true, completion: nil)
     }
 }

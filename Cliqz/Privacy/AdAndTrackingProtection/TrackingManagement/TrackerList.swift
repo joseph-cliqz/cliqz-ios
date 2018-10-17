@@ -43,6 +43,10 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
     
     var appsList = [TrackerListApp]()
     var apps = [Int: TrackerListApp]()   // App ID is the key
+    var appsByCategory = Dictionary<String, [TrackerListApp]>()
+    var countByCategory = Dictionary<String, Int>()
+    var categoriesAndCountByDomain = [String: [String: Int]]()
+    var categories = [String]()
     var bugs = [Int: Int]()              // Bug ID is the key, AppId is the value
     var app2bug = [Int: [Int]]()           // App ID is the key, Bug ID array is the value
     var hosts = TrackerListHosts()
@@ -52,36 +56,38 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
     var discoveredBugs = [String: PageTrackersFound]() // Page URL is the key
     var applyDefaultsOp: ApplyDefaultsOperation? = nil
     let populateOp = PopulateBlockedTrackersOperation()
+    var bugsURL: URL? = nil
 
     // MARK: - Tracker List Initialization
     
-    func loadTrackerList() {
+    func loadTrackerList(bugsURL: URL?) {
+        // Set the path - Important
+        self.bugsURL = bugsURL
         // Check version of tracker list.
         // Use a sequencial queue to make sure that the loadOperation is complete before loading the Antritracking/Adblocking (since these are dependent on the Trackers List).
         // To ensure this, loadTrackerList should be called before any calls to a coordinatedUpdate.
         let loadOperation = LoadTrackerListOperation()
         
-        if UserDefaults.standard.bool(forKey: trackersDefaultsAreAppliedKey) == false {
-            applyDefaultsOp = ApplyDefaultsOperation()
-            applyDefaultsOp!.addDependency(loadOperation)
-            populateOp.addDependency(applyDefaultsOp!)
-            UserDefaults.standard.set(true, forKey: trackersDefaultsAreAppliedKey)
-            UserDefaults.standard.synchronize()
-        }
-        else {
-            populateOp.addDependency(loadOperation)
-        }
+//        if UserDefaults.standard.bool(forKey: trackersDefaultsAreAppliedKey) == false {
+//            applyDefaultsOp = ApplyDefaultsOperation()
+//            applyDefaultsOp!.addDependency(loadOperation)
+//            populateOp.addDependency(applyDefaultsOp!)
+//            UserDefaults.standard.set(true, forKey: trackersDefaultsAreAppliedKey)
+//            UserDefaults.standard.synchronize()
+//        }
+//        else {
+              populateOp.addDependency(loadOperation)
+//        }
         
         GlobalPrivacyQueue.shared.addOperation(loadOperation)
-        if let applyOp = applyDefaultsOp {
-            GlobalPrivacyQueue.shared.addOperation(applyOp)
-        }
+//        if let applyOp = applyDefaultsOp {
+//            GlobalPrivacyQueue.shared.addOperation(applyOp)
+//        }
         GlobalPrivacyQueue.shared.addOperation(populateOp)
     }
     
     func localTrackerFileURL() -> URL? {
-        let documentsURLs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        return documentsURLs.first?.appendingPathComponent("bugs.json")
+        return bugsURL
     }
     
     func loadTrackerList(_ data: Data) {
@@ -118,6 +124,14 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
                         loadRegexes(regexData)
                     }
                 }
+                
+                appsByCategory = globalTrackerList().groupBy(key: { (app) -> String in
+                    return app.category
+                })
+                countByCategory = appsByCategory.reduceValues(reduce: { (list) -> Int in
+                    return list.count
+                })
+                categories = countByCategory.sortedKeysAscending(false)
                 
                 debugPrint("Tracker data loaded.")
                 NotificationCenter.default.post(name: trackersLoadedNotification, object: nil)
@@ -257,6 +271,23 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
                 // update the list
                 discoveredBugs[pageUrlString] = pageTrackers
                 
+                if let category = apps[appId]?.category {
+                    var count = 0
+                    pageTrackers!.appIdSet().forEach { (appId) in
+                        if apps[appId]?.category == category {
+                            count += 1
+                        }
+                    }
+                    if var dict = categoriesAndCountByDomain[pageUrlString] {
+                        dict[category] = count
+                        categoriesAndCountByDomain[pageUrlString] = dict
+                    }
+                    else {
+                        categoriesAndCountByDomain[pageUrlString] = [category: count]
+                    }
+                    
+                }
+                
                 return trackerBug
             }
         }
@@ -382,18 +413,12 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
         // convert the list of detected bugs into an array of tracker apps/vendors
         var appList = [TrackerListApp]()
         if let pageBugs = discoveredBugs[pageUrl] {
-            let appIdList = pageBugs.appIdList()
+            let appIdList = pageBugs.appIdSet()
             for appId in appIdList {
                 if let trackerApp = apps[appId] {
-                    //trackerApp.isBlocked = self.shouldBlockTracker(appId)
                     appList.append(trackerApp)
                 }
             }
-        }
-
-        // Sort list
-        appList.sort { (trackerApp1, trackerApp2) -> Bool in
-            return trackerApp1.name.localizedCaseInsensitiveCompare(trackerApp2.name) == ComparisonResult.orderedAscending
         }
         
         return appList
@@ -402,7 +427,7 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
     func detectedTrackerCountForPage(_ pageUrl: String?) -> Int {
         guard let pageUrl = pageUrl else { return 0 }
         if let pageBugs = discoveredBugs[pageUrl] {
-            return pageBugs.appIdList().count
+            return pageBugs.appIdSet().count
         }
 
         return 0
@@ -418,38 +443,39 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
 //        return TrackerStore.shared.contains(member: appId)
 //    }
 
-    func blockAllTrackers() {
-        // get the list of tracker apps to block
-        var appList = [TrackerListApp]()
-        for (_, trackerApp) in apps {
-            //trackerApp.isBlocked = true
-            TrackerStateStore.change(appId: trackerApp.appId, toState: .blocked)
-            appList.append(trackerApp)
-        }
-
-        blockSpecificTrackers(appList)
-
-        UserPreferences.instance.antitrackingMode = .blockAll
-        UserPreferences.instance.writeToDisk()
-    }
-
-    func unblockAllTrackers() {
-        TrackerStore.shared.removeAll()
-
-        UserPreferences.instance.antitrackingMode = .blockSomeOrNone
-        UserPreferences.instance.writeToDisk()
-    }
-
-    func blockSpecificTrackers(_ trackers: [TrackerListApp]) {
-        // run this on a background thread and context
-        
-        for tracker in trackers {
-            TrackerStore.shared.add(member: tracker.appId)
-        }
-
-        UserPreferences.instance.antitrackingMode = .blockSomeOrNone
-        UserPreferences.instance.writeToDisk()
-    }
+//    Cliqz: See ControlCenterDelegate for blocking
+//    func blockAllTrackers() {
+//        // get the list of tracker apps to block
+//        var appList = [TrackerListApp]()
+//        for (_, trackerApp) in apps {
+//            //trackerApp.isBlocked = true
+//            TrackerStateStore.change(appId: trackerApp.appId, toState: .blocked)
+//            appList.append(trackerApp)
+//        }
+//
+//        blockSpecificTrackers(appList)
+//
+//        UserPreferences.instance.antitrackingMode = .blockAll
+//        UserPreferences.instance.writeToDisk()
+//    }
+//
+//    func unblockAllTrackers() {
+//        TrackerStore.shared.removeAll()
+//
+//        UserPreferences.instance.antitrackingMode = .blockSomeOrNone
+//        UserPreferences.instance.writeToDisk()
+//    }
+//
+//    func blockSpecificTrackers(_ trackers: [TrackerListApp]) {
+//        // run this on a background thread and context
+//
+//        for tracker in trackers {
+//            TrackerStore.shared.add(member: tracker.appId)
+//        }
+//
+//        UserPreferences.instance.antitrackingMode = .blockSomeOrNone
+//        UserPreferences.instance.writeToDisk()
+//    }
     
     // MARK: - Helper Methods
     
@@ -475,25 +501,10 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
     }
     
     //Cliqz
-    
     func trackersByCategory(domain: String) -> Dictionary<String, [TrackerListApp]> {
-        return self.trackersByCategory(for: domain)
-    }
-    
-    func globalTrackersByCategory() -> Dictionary<String, [TrackerListApp]> {
-        return self.trackersByCategory()
-    }
-    
-    //This can be optimized with a cache
-    func trackersByCategory(for domain: String? = nil) -> Dictionary<String, [TrackerListApp]> {
         let list: [TrackerListApp]
         
-        if let domain = domain {
-            list = self.detectedTrackersForPage(domain)
-        } else {
-            list = self.globalTrackerList()
-        }
-        
+        list = self.detectedTrackersForPage(domain)
         let dict = list.groupBy { (app) -> String in
             return app.category
         }
@@ -501,19 +512,12 @@ let trackersLoadedNotification = Notification.Name(rawValue:"TrackersLoadedNotif
         return dict
     }
     
-    func countByCategory(domain: String? = nil ) ->Dictionary<String, Int> {
-        let list: [TrackerListApp]
-        
-        if let domain = domain {
-            list = self.detectedTrackersForPage(domain)
-        } else {
-            list = self.globalTrackerList()
-        }
-        
-        return list.groupAndReduce(byKey: { (app) -> String in
-            return app.category
-        }, reduce: { (list) -> Int in
-            return list.count
-        })
+    //categories for domain
+    func categories(domain: String) -> [String] {
+        return categoriesAndCountByDomain[domain]?.sortedKeysAscending(false) ?? []
+    }
+    
+    func countByCategory(domain: String) -> Dictionary<String, Int> {
+        return categoriesAndCountByDomain[domain] ?? [:]
     }
 }

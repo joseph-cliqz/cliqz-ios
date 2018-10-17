@@ -7,27 +7,28 @@
 //
 
 import Foundation
+import RxSwift
 
 let controlCenterDismissedNotification = Notification.Name(rawValue: "ControlCenterDismissed")
 
 protocol ControlCenterViewControllerDelegate: class {
     func dismiss()
+	func controlCenter(didSelectURLString url: String)
 }
 
 class ControlCenterViewController: UIViewController {
-	weak var homePanelDelegate: HomePanelDelegate?
 
-	var dataSourceWithURL: ControlCenterDSProtocol?
-	var delegateWithURL: ControlCenterDelegateProtocol?
+	var model: ControlCenterModel = ControlCenterModel()
     
-    var dataSourceWithoutURL: ControlCenterDSProtocol?
-    var delegateWithoutURL: ControlCenterDelegateProtocol?
+    var privateMode: Bool = false
     
-    weak var container: ControlCenterViewControllerDelegate? = nil
+	weak var delegate: ControlCenterViewControllerDelegate? = nil
 
 	private var topTranparentView = UIView()
 	fileprivate var panelSwitchControl = UISegmentedControl(items: [])
 	fileprivate var panelContainerView = UIView()
+
+	private let disposeBag = DisposeBag()
 
 	fileprivate lazy var overviewViewController: OverviewViewController = {
 		let overview = OverviewViewController()
@@ -37,11 +38,17 @@ class ControlCenterViewController: UIViewController {
 	fileprivate lazy var trackersViewController: TrackersController = {
 		let trackers = TrackersController()
 		trackers.type = .page
+		trackers.observable.asObserver().subscribe(onNext: { [weak self] value in
+			self?.delegate?.controlCenter(didSelectURLString: value)
+		}).disposed(by: self.disposeBag)
 		return trackers
 	}()
 
 	fileprivate lazy var globalTrackersViewController: TrackersController = {
 		let global = TrackersController()
+		global.observable.asObserver().subscribe(onNext: { [weak self] value in
+			self?.delegate?.controlCenter(didSelectURLString: value)
+		}).disposed(by: self.disposeBag)
 		global.type = .global
 		return global
 	}()
@@ -50,8 +57,7 @@ class ControlCenterViewController: UIViewController {
 		didSet {
 			if !pageURL.isEmpty,
 				let url = URL(string: pageURL) {
-				self.dataSourceWithURL = ControlCenterDataSource(url: url)
-				self.delegateWithURL = ControlCenterDelegate(url: url)
+				self.model.url = url
 				self.overviewViewController.pageURL = url.host ?? ""
 			}
 		}
@@ -61,10 +67,8 @@ class ControlCenterViewController: UIViewController {
     
     override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
         lastOrientation = UIDevice.current.getDeviceAndOrientation().1
-        dataSourceWithoutURL = ControlCenterDataSource(url: nil)
-        delegateWithoutURL = ControlCenterDelegate(url: nil)
         super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
-        NotificationCenter.default.addObserver(self, selector: #selector(orientationChanged(notification:)), name: Notification.Name.UIDeviceOrientationDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(orientationChanged(notification:)), name: Notification.Name.DeviceOrientationChanged, object: nil)
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -88,7 +92,6 @@ class ControlCenterViewController: UIViewController {
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        TelemetryHelper.sendControlCenterShow()
     }
 
 	private func setupComponents() {
@@ -116,11 +119,10 @@ class ControlCenterViewController: UIViewController {
 		self.view.backgroundColor = UIColor.clear
 		
 		let bgView = UIView()
-		bgView.backgroundColor = UIColor.cliqzURLBarColor
-		
+		bgView.backgroundColor = UIColor.CliqzURLBar.Background.color(isPBM: self.privateMode)
 		panelSwitchControl = UISegmentedControl(items: items)
 		panelSwitchControl.tintColor = UIColor.white
-		panelSwitchControl.backgroundColor = UIColor.cliqzURLBarColor
+		panelSwitchControl.backgroundColor = UIColor.CliqzURLBar.Background.color(isPBM: self.privateMode)
 		panelSwitchControl.addTarget(self, action: #selector(switchPanel), for: .valueChanged)
 		bgView.addSubview(panelSwitchControl)
 		self.view.addSubview(bgView)
@@ -160,16 +162,16 @@ class ControlCenterViewController: UIViewController {
 	private func selectedPanel() -> UIViewController {
 		switch panelSwitchControl.selectedSegmentIndex {
 		case 0:
-			self.overviewViewController.dataSource = self.dataSourceWithURL
-			self.overviewViewController.delegate = self.delegateWithURL
+			self.overviewViewController.dataSource = self.model
+			self.overviewViewController.delegate = self.model
 			return self.overviewViewController
 		case 1:
-			self.trackersViewController.dataSource = self.dataSourceWithURL
-			self.trackersViewController.delegate = self.delegateWithURL
+			self.trackersViewController.dataSource = self.model
+			self.trackersViewController.delegate = self.model
 			return self.trackersViewController
 		case 2:
-			self.globalTrackersViewController.dataSource = self.dataSourceWithoutURL
-			self.globalTrackersViewController.delegate = self.delegateWithoutURL
+			self.globalTrackersViewController.dataSource = self.model
+			self.globalTrackersViewController.delegate = self.model
 			return self.globalTrackersViewController
 		default:
 			return UIViewController()
@@ -180,7 +182,7 @@ class ControlCenterViewController: UIViewController {
         let orientation = UIDevice.current.getDeviceAndOrientation().1
         if orientation != lastOrientation {
             lastOrientation = orientation
-            container?.dismiss()
+            delegate?.dismiss()
         }
     }
 }
